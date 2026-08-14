@@ -6,6 +6,15 @@ Canonical spec: [`requirements.md`](./requirements.md). Where this doc and the s
 
 ## How to read this list
 
+**What these tickets are.** Granular delivery goals, not an implementation plan. Each one states the
+outcome and how to verify it, and says nothing about how to build it — that is deliberate. Before a
+ticket is implemented, its design is discussed and agreed, and whatever that settles is recorded in
+[`decision-logs.md`](./decision-logs.md).
+
+**Status** — every ticket carries one line: `Not started`, `In progress`, `Blocked` or `Done`. A ticket
+reaches `Done` only once its QA steps have actually been run, and the `QA:` note records when, plus
+anything that was not fully verified.
+
 **Priority bands**
 
 | Band | Meaning |
@@ -42,19 +51,20 @@ the implementation actually chose:
 ## LM-01 · Runnable skeleton on Docker Compose
 
 **Priority:** P0 · **Estimate:** 2h · **Depends on:** —
+**Status:** Done · **QA:** passed 2026-08-14 — step 4 partial, bucket confirmed via the S3 API rather than the console UI
 
 > As a reviewer, I want to bring the whole system up with one command on my own machine, so that I can evaluate
 > the app without hand-assembling infrastructure.
 
 **Acceptance criteria**
 
-- [ ] A single documented command brings up API, database, object storage and the web app together.
-- [ ] The API exposes a health endpoint that reports its own liveness and its database connectivity.
-- [ ] The web app loads in a browser and can reach the API (no CORS/origin errors in the console).
-- [ ] Object storage starts with its bucket already created — no manual console step required.
-- [ ] Configuration (DB connection, storage endpoint/credentials, API base URL) comes from environment
+- [x] A single documented command brings up API, database, object storage and the web app together.
+- [x] The API exposes a health endpoint that reports its own liveness and its database connectivity.
+- [x] The web app loads in a browser and can reach the API (no CORS/origin errors in the console).
+- [x] Object storage starts with its bucket already created — no manual console step required.
+- [x] Configuration (DB connection, storage endpoint/credentials, API base URL) comes from environment
       variables with working defaults, so swapping storage for real S3 later is config-only (§5).
-- [ ] Bringing the stack down and up again does not lose database contents.
+- [x] Bringing the stack down and up again does not lose database contents.
 
 **QA steps** — *backend/infra*
 
@@ -70,6 +80,7 @@ the implementation actually chose:
 ## LM-02 · Data model, migrations and hot-path indexes
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-01
+**Status:** Not started
 
 > As an engineer, I want a schema that models users, products, images, negotiation threads and offers with the
 > right constraints, so that the domain rules in §2 are enforceable at the data layer rather than only in UI code.
@@ -103,6 +114,7 @@ the implementation actually chose:
 ## LM-03 · Seed data (test users + sample products)
 
 **Priority:** P0 · **Estimate:** 1h · **Depends on:** LM-02
+**Status:** Not started
 
 > As a reviewer, I want the database pre-populated with known users and a few products, so that I can log in and
 > exercise the app immediately without creating data by hand (there is no registration UI, §2.1).
@@ -130,6 +142,7 @@ the implementation actually chose:
 ## LM-04 · Login API and stateless session
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-03
+**Status:** Not started
 
 > As a seeded user, I want to exchange my email and password for a credential the API accepts, so that the system
 > can tell who is acting and enforce the buyer/seller rules.
@@ -163,6 +176,7 @@ the implementation actually chose:
 ## LM-05 · Login and logout in the browser
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-04
+**Status:** Not started
 
 > As a user, I want to log in on a login screen and log out from the header, so that I can start and end a session
 > in the app (§3.1).
@@ -191,6 +205,7 @@ the implementation actually chose:
 ## LM-06 · Create a product with images
 
 **Priority:** P0 · **Estimate:** 2.5h · **Depends on:** LM-04
+**Status:** Not started
 
 > As a seller, I want to list a product with a name, price, description and up to five images, so that other users
 > can see and buy it (§2.2, §3.3).
@@ -228,6 +243,7 @@ the implementation actually chose:
 ## LM-07 · Read products (list + detail)
 
 **Priority:** P0 · **Estimate:** 1h · **Depends on:** LM-06
+**Status:** Not started
 
 > As a logged-in user, I want to fetch all listings and the full detail of one listing, so that the browsing screens
 > have data to render (§3.2, §3.4).
@@ -261,6 +277,7 @@ the implementation actually chose:
 ## LM-08 · Product List screen
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-05, LM-07
+**Status:** Not started
 
 > As a logged-in user, I want to see all listings as a grid of cards, so that I can find something to buy (§3.2).
 
@@ -292,6 +309,7 @@ the implementation actually chose:
 ## LM-09 · Product Registration screen
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-06, LM-08
+**Status:** Not started
 
 > As a seller, I want a form to list a new product, so that I can put an item up for sale (§3.3).
 
@@ -333,6 +351,7 @@ the implementation actually chose:
 ## LM-10 · Product Details screen
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-07, LM-08
+**Status:** Not started
 
 > As a logged-in user, I want to see everything about one listing on its own screen, so that I can decide whether
 > to buy or negotiate (§3.4).
@@ -362,6 +381,7 @@ the implementation actually chose:
 ## LM-11 · Purchase endpoint with atomic status transitions
 
 **Priority:** P0 · **Estimate:** 2.5h · **Depends on:** LM-07
+**Status:** Not started
 
 > As a buyer, I want my purchase to either complete or be cleanly refused, so that a product can never be sold twice
 > and I can never buy something I am not entitled to (§2.3).
@@ -404,6 +424,7 @@ the implementation actually chose:
 ## LM-12 · Purchase button behaviour in the UI
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-10, LM-11
+**Status:** Not started
 
 > As a buyer, I want a Purchase button that appears exactly when I am actually allowed to buy, so that I am never
 > offered an action that will fail (§3.4).
@@ -447,6 +468,7 @@ Use a normal window for **Alice (seller)** and an **incognito window** for **Bob
 ## LM-13 · Negotiation engine — open thread and counter
 
 **Priority:** P0 · **Estimate:** 2.5h · **Depends on:** LM-07
+**Status:** Not started
 
 > As a buyer or seller, I want to exchange counter offers in an orderly back-and-forth, so that we can converge on
 > a price before the sale completes (§2.5).
@@ -493,6 +515,7 @@ Use a normal window for **Alice (seller)** and an **incognito window** for **Bob
 ## LM-14 · Accept an offer → Reserved
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-13, LM-11
+**Status:** Not started
 
 > As the side being offered to, I want to accept the current offer, so that the product is locked to that buyer at
 > the agreed price and nobody else can take it (§2.5 rule 5).
@@ -569,6 +592,7 @@ Use a normal window for **Alice (seller)** and an **incognito window** for **Bob
 ## LM-15 · Negotiation history read model
 
 **Priority:** P0 · **Estimate:** 1h · **Depends on:** LM-13
+**Status:** Not started
 
 > As any viewer of a product, I want the complete cross-buyer offer history in one chronological feed, so that the
 > history section can render for everyone, not just my own thread (§2.5, §3.4).
@@ -602,6 +626,7 @@ Use a normal window for **Alice (seller)** and an **incognito window** for **Bob
 ## LM-16 · Negotiation History UI with inline controls
 
 **Priority:** P0 · **Estimate:** 3h · **Depends on:** LM-10, LM-14, LM-15
+**Status:** Not started
 
 > As a buyer or seller looking at a product, I want to see the whole offer history and act on the offer that is mine
 > to answer, so that I can negotiate entirely from the product screen (§3.4).
@@ -671,6 +696,7 @@ but each item is individually droppable without breaking the product.
 ## LM-17 · README with setup and seeded credentials
 
 **Priority:** P1 · **Estimate:** 1.5h · **Depends on:** LM-16
+**Status:** Not started
 
 > As a reviewer, I want one document that gets me from clone to working app, so that I can evaluate the submission
 > without asking questions (§7).
@@ -682,6 +708,9 @@ but each item is individually droppable without breaking the product.
 - [ ] States all URLs and ports (web, API, DB, object storage console).
 - [ ] Publishes the seeded test credentials from LM-03 verbatim, and explains that there is no registration by design (§2.1).
 - [ ] States how to run the test suite.
+- [ ] Explains that `.env` is committed on purpose so the stack runs straight from a clone with nothing to
+      create by hand, that its values are local-only and not secrets, and that this exercise is not deployed
+      anywhere — a real deployment would keep `.env` out of the repository and take its values from a secret store.
 - [ ] Includes a short "try it in 5 minutes" walkthrough: log in as Bob → buy a product → log in as Carol →
       negotiate → accept → purchase.
 - [ ] Documents known limitations and anything deliberately out of scope (§4.1, plus: no seller listing management,
@@ -706,6 +735,7 @@ but each item is individually droppable without breaking the product.
 ## LM-18 · Concurrency and atomicity test suite
 
 **Priority:** P1 · **Estimate:** 2h · **Depends on:** LM-11, LM-14
+**Status:** Not started
 
 > As an engineer, I want automated proof that concurrent purchase and accept attempts cannot both succeed, so that
 > the atomicity requirement is demonstrated rather than asserted (§2.3, §6).
@@ -745,6 +775,7 @@ but each item is individually droppable without breaking the product.
 ## LM-19 · Implementation plan, design decisions and deployment notes
 
 **Priority:** P1 · **Estimate:** 2h · **Depends on:** LM-16
+**Status:** Not started
 
 > As a reviewer, I want to see the build order that was followed, the alternatives that were weighed, and what an
 > AWS deployment would take, so that I can assess engineering judgement and not just the code (§7, §8).
@@ -785,6 +816,7 @@ but each item is individually droppable without breaking the product.
 ## LM-20 · Meaningful git history and repo hygiene
 
 **Priority:** P1 · **Estimate:** 0.5h · **Depends on:** LM-19
+**Status:** Not started
 
 > As a reviewer, I want a commit history that shows the work progressing in milestones, so that I can see how the
 > solution was built rather than receiving one opaque drop (§7).
@@ -810,6 +842,7 @@ but each item is individually droppable without breaking the product.
 ## LM-21 · Submission and access grant — **DO THIS LAST**
 
 **Priority:** P1 · **Estimate:** 0.25h · **Depends on:** LM-17, LM-19, LM-20
+**Status:** Not started
 
 > As the candidate, I want the reviewers to be able to open the repository, so that the work is actually received
 > (§7).
@@ -852,6 +885,7 @@ cut; it is intentionally absent and nothing is renumbered to fill the gap.
 ## LM-22 · Product List status filter and ordering
 
 **Priority:** P2 · **Estimate:** 2h · **Depends on:** LM-08
+**Status:** Not started
 
 > As a shopper, I want to filter the product list by status and control its order, so that I can look at what is
 > still buyable and see the freshest listings first.
@@ -885,6 +919,7 @@ cut; it is intentionally absent and nothing is renumbered to fill the gap.
 ## LM-23 · Seller price edit before any negotiation
 
 **Priority:** P2 · **Estimate:** 1.5h · **Depends on:** LM-13
+**Status:** Not started
 
 > As a seller, I want to correct my listed price while the item is still untouched, so that a typo does not force
 > me to relist (§4.2).
@@ -914,6 +949,7 @@ cut; it is intentionally absent and nothing is renumbered to fill the gap.
 ## LM-24 · Remaining §4.2 bonuses (search, "my offers", mobile)
 
 **Priority:** P2 · **Estimate:** 3h (≈1h each, pick individually) · **Depends on:** LM-08, LM-16
+**Status:** Not started
 
 > As a user, I want to search listings, see only products I have offers on, and use the app on my phone, so that
 > the app is more usable at scale (§4.2).
@@ -946,6 +982,7 @@ cut; it is intentionally absent and nothing is renumbered to fill the gap.
 ## LM-25 · Purchase-at-original-price escape hatch for a negotiating buyer
 
 **Priority:** P2 · **Estimate:** 2h · **Depends on:** LM-12, LM-15
+**Status:** Not started
 
 > As a buyer whose negotiation has stalled, I want to buy at the original listed price after all, so that opening a
 > negotiation does not trap me with no way to complete the purchase.
@@ -1002,6 +1039,7 @@ Normal window = **Alice (seller)**. Incognito = **Bob**.
 ## LM-26 · Confirmation step on Purchase and Accept
 
 **Priority:** P2 · **Estimate:** 1h · **Depends on:** LM-12, LM-16
+**Status:** Not started
 
 > As a user about to do something irreversible, I want to confirm first, so that a misclick does not permanently
 > sell or reserve a product.
@@ -1045,6 +1083,7 @@ Normal window = **Alice (seller)**. Incognito = **Bob**.
 ## LM-27 · Post-action feedback modal
 
 **Priority:** P2 · **Estimate:** 1.5h · **Depends on:** LM-12, LM-16
+**Status:** Not started
 
 > As a user who just purchased, accepted or countered, I want a clear acknowledgement of what happened, so that I
 > am not silently teleported back to the product list wondering whether it worked.

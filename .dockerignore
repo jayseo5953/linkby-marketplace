@@ -1,0 +1,11 @@
+# Keep the build context small — node_modules is installed inside the image by `npm ci`,
+# so shipping the local copy to the daemon is pure transfer cost.
+node_modules
+**/node_modules
+dist
+build
+coverage
+.git
+.data
+*.log
+.DS_Store

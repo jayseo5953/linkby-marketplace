@@ -7,9 +7,10 @@ build/
 *.tsbuildinfo
 
 # Environment
-.env
+# .env itself is committed on purpose (T-21); every sibling stays ignored, so a
+# later .env.production holding real credentials cannot be staged by accident.
 .env.*
-!.env.example
+!.env
 
 # Test output
 coverage/
@@ -25,3 +26,6 @@ npm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+
+# Docs
+docs/decision-logs.md
