@@ -62,9 +62,38 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     volumes:
       - ./apps/api:/app/apps/api
+      # The schema imports the shared enums, so a stale baked-in copy would migrate to
+      # the wrong values.
+      - ./packages/shared:/app/packages/shared
     depends_on:
       db:
         condition: service_healthy
+
+  # Loads the demo dataset once the tables and the bucket both exist, then exits 0.
+  # `Exited (0)` in `docker compose ps` is success, not a crash.
+  # Seeding is idempotent — it guards on existing users and exits 0 without
+  # re-inserting — so it is safe that Compose runs it on every `up`.
+  # Writes rows to Postgres and uploads images to MinIO, hence both sets of vars.
+  seed:
+    image: linkby-marketplace-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: npm run db:seed
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages/shared:/app/packages/shared
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      storage-init:
+        condition: service_completed_successfully
 
   api:
     image: linkby-marketplace-api
@@ -92,6 +121,8 @@ services:
       storage-init:
         condition: service_completed_successfully
       migrate:
+        condition: service_completed_successfully
+      seed:
         condition: service_completed_successfully
 
   web:

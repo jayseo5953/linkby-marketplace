@@ -123,29 +123,59 @@ the implementation actually chose:
 
 ## LM-03 · Seed data (test users + sample products)
 
-**Priority:** P0 · **Estimate:** 1h · **Depends on:** LM-02
-**Status:** Not started
+**Priority:** P0 · **Estimate:** 2h · **Depends on:** LM-02
 
-> As a reviewer, I want the database pre-populated with known users and a few products, so that I can log in and
-> exercise the app immediately without creating data by hand (there is no registration UI, §2.1).
+**Status:** Done · **QA:** passed 2026-08-14 — all 8 steps from a cold start with no images and no
+volumes; alternation, buyer-is-never-seller and key-to-object reconciliation asserted by query
+rather than checked by eye
+
+> As a reviewer, I want the database pre-populated with known users and a spread of products that between them
+> cover every product and negotiation state, so that I can log in and exercise the app immediately — and see each
+> state rendered — without creating data by hand (there is no registration UI, §2.1).
+
+**Seed product matrix** — every product's name ends `(Seeded Demo)` and its description states what it
+demonstrates, so the state is legible from the UI without consulting this table.
+
+| # | Seller | Status | Images | Negotiation state |
+| --- | --- | --- | --- | --- |
+| 1 | alice | Available | 0 | none — exercises the placeholder card |
+| 2 | alice | Available | 3 | none |
+| 3 | bob | Available | 5 | none — exercises the 5-image cap |
+| 4 | alice | Available | 1 | bob has an open offer; **seller's turn** |
+| 5 | alice | Available | 2 | bob offered, alice countered; **buyer's turn** |
+| 6 | alice | Available | 2 | bob and carol both negotiating, at opposite turns |
+| 7 | alice | Available | 1 | carol, four rounds of back-and-forth |
+| 8 | alice | Reserved | 2 | bob's offer accepted; carol's losing offers remain in history |
+| 9 | alice | Sold | 1 | carol's offer accepted |
+| 10 | bob | Sold | 1 | none — alice purchased outright, so there is no offer behind the sale |
 
 **Acceptance criteria**
 
-- [ ] Seeding runs on startup (or via one documented command) and is safe to run repeatedly — no duplicate users.
-- [ ] The three users in the seed identity contract above exist with those exact emails, passwords and display names.
-- [ ] Passwords are stored hashed, never in plaintext.
-- [ ] At least three sample products exist, owned across at least two different sellers, so that every seeded user
-      has something they can act on as a buyer.
-- [ ] All seeded products start in `Available` status.
-- [ ] Seeded credentials are the same values that LM-17 publishes in the README.
+- [x] Seeding runs on startup (or via one documented command) and is safe to run repeatedly — re-running produces
+      no duplicate users, products or offers.
+- [x] The three users in the seed identity contract above exist with those exact emails, passwords and display names.
+- [x] Passwords are stored hashed, never in plaintext.
+- [x] The ten products above exist, matching the matrix on seller, status, image count and negotiation state.
+- [x] Every product name ends `(Seeded Demo)` and its description names the state it demonstrates.
+- [x] Products 8–10 each name a committed buyer; products 1–7 name none.
+- [x] Seeded offer sequences satisfy the rules the negotiation engine will later enforce — turns alternate, only
+      the newest offer in a pair is actionable, and no offer post-dates the acceptance that reserved the product.
+- [x] Every key in `image_keys` resolves to an object that actually exists in the bucket.
+- [x] Seeded credentials are the same values that LM-17 publishes in the README.
 
 **QA steps** — *backend/SQL*
 
 1. `docker compose down -v && docker compose up -d`, wait for seeding.
 2. `psql $DB -c "select email, display_name from users order by email;"` → exactly the three contract users.
 3. `psql $DB -c "select password_hash from users limit 1;"` → value is a hash, **not** `password123`.
-4. `psql $DB -c "select name, status, seller_id from products;"` → ≥3 rows, all `Available`, ≥2 distinct sellers.
-5. Re-run the seed command → step 2 still returns three rows (no duplication).
+4. `psql $DB -c "select id, name, status, seller_id, cardinality(image_keys) from products order by id;"` → ten
+   rows matching the matrix, names all suffixed `(Seeded Demo)`, two distinct sellers.
+5. `psql $DB -c "select id, status, buyer_id from products where buyer_id is not null;"` → exactly products 8, 9
+   and 10, none of them `Available`.
+6. `psql $DB -c "select product_id, buyer_id, made_by, amount_cents, created_at from offers order by product_id, id;"`
+   → sequences match the matrix; within each (product, buyer) pair `made_by` alternates and timestamps ascend.
+7. For one key from each seeded product: `mc stat local/$S3_BUCKET/<key>` → the object exists.
+8. Re-run the seed command → steps 4 and 6 return identical row counts (no duplication).
 
 ---
 

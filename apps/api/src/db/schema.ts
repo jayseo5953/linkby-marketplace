@@ -1,3 +1,4 @@
+import { OFFER_SIDES, PRODUCT_STATUSES } from '@linkby/shared';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
@@ -10,8 +11,8 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export const productStatus = pgEnum('product_status', ['Available', 'Reserved', 'Sold']);
-export const offerSide = pgEnum('offer_side', ['buyer', 'seller']);
+export const productStatus = pgEnum('product_status', PRODUCT_STATUSES);
+export const offerSide = pgEnum('offer_side', OFFER_SIDES);
 
 export const users = pgTable(
   'users',

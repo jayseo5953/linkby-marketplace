@@ -1,8 +1,10 @@
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { config } from '../config';
 import { logger } from '../lib/logger';
+import * as schema from './schema';
 
-/** Replaced by the Drizzle client in LM-02; for now it exists so /health can prove connectivity. */
+/** Exists so /health can prove connectivity. */
 export const pool = new Pool({
   connectionString: config.DATABASE_URL,
   // Defaults to 0, meaning wait forever — a connection attempt to an unreachable
@@ -16,3 +18,5 @@ export const pool = new Pool({
 pool.on('error', (error) => {
   logger.warn({ err: error }, 'idle postgres client errored');
 });
+
+export const db = drizzle(pool, { schema });
