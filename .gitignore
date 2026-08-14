@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Test output
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local data volumes
+.data/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
