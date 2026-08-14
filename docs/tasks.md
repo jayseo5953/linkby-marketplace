@@ -80,34 +80,44 @@ the implementation actually chose:
 ## LM-02 · Data model, migrations and hot-path indexes
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-01
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-14 — all 9 steps; every CHECK, enum, unique index and FK delete rule exercised by a failing insert or delete
 
-> As an engineer, I want a schema that models users, products, images, negotiation threads and offers with the
+> As an engineer, I want a schema that models users, products, images, negotiations and offers with the
 > right constraints, so that the domain rules in §2 are enforceable at the data layer rather than only in UI code.
 
 **Acceptance criteria**
 
-- [ ] Migrations run automatically (or via one documented command) on a clean database and are idempotent on re-run.
-- [ ] Users, products, product images, negotiation threads and offers are all represented.
-- [ ] Product carries: name, description, price, seller, status, created timestamp — and enough information to
-      identify the **reserved buyer** once reserved.
-- [ ] Product status is constrained to exactly `Available` / `Reserved` / `Sold`; no other value can be stored.
-- [ ] A negotiation thread is unique per (product, buyer) pair — enforced by a constraint, not convention.
-- [ ] An offer records: timestamp, thread, `madeBy` side (`buyer`/`seller`), price.
-- [ ] Money is stored in an exact numeric type (never a float).
-- [ ] Indexes exist for the hot paths named in §5: products by status, offers by product + buyer.
-- [ ] Foreign keys are declared with sensible delete behaviour; a product cannot reference a non-existent seller.
+- [x] Migrations run on `docker compose up` against a clean database, and are idempotent on re-run.
+- [x] Users, products, product images and offers are all represented. A negotiation has no table of its own — it
+      is identified by the (product, buyer) pair its offers carry, so a duplicate negotiation is not representable.
+- [x] Product carries: name, description, price, seller, status, created timestamp — and names the **buyer it is
+      committed to**, set both when an offer is accepted and when a buyer purchases outright.
+- [x] Product status is constrained to exactly `Available` / `Reserved` / `Sold`; no other value can be stored.
+- [x] An offer records: timestamp, the negotiation it belongs to (product + buyer), `madeBy` side
+      (`buyer`/`seller`), price.
+- [x] Money is stored as integer cents — an exact type, never a float — and cannot be zero or negative.
+- [x] CHECK constraints hold the schema-level invariants: a product names a buyer exactly when it is no longer
+      `Available`, that buyer is never the seller, and a product carries at most 5 images.
+- [x] Indexes exist for the hot paths named in §5: products by status, offers by product + buyer.
+- [x] Foreign keys are declared with sensible delete behaviour; a product cannot reference a non-existent seller.
 
 **QA steps** — *backend/SQL*
 
-1. `docker compose down -v && docker compose up -d` (clean volume) → migrations run without error.
-2. `psql $DB -c "\d products"` → confirm columns, the status constraint and the seller FK are present.
+1. `docker compose down -v && docker compose up -d` (clean volume) → the migration service exits 0 and the API
+   starts behind it.
+2. `psql $DB -c "\d products"` → confirm columns, the status enum type, the seller FK and the CHECK constraints.
 3. `psql $DB -c "\di"` → confirm an index on product status and one on offers by product+buyer.
-4. Negative test: `psql $DB -c "insert into products (name, price, status, seller_id) values ('x', 1, 'Frozen', <valid_id>);"`
-   → **rejected** by the status constraint.
-5. Negative test: insert two negotiation threads for the same (product, buyer) → second insert **rejected** by the
-   unique constraint.
-6. Re-run the migration command on the already-migrated DB → completes with no error and no duplicate objects.
+4. Negative test: `psql $DB -c "insert into products (name, price_cents, status, seller_id) values ('x', 1, 'Frozen', <valid_id>);"`
+   → **rejected**, no such value in the status enum.
+5. Negative test: insert a product with status `Reserved` and a null `buyer_id`, then one with status `Available`
+   and a `buyer_id` set → both **rejected** by the buyer CHECK.
+6. Negative test: insert a product with 6 image keys → **rejected** by the image-count CHECK.
+7. Negative test: an offer with `amount_cents = 0`, one with an unknown `made_by`, and one referencing a
+   nonexistent product or buyer → all four **rejected**.
+8. Delete behaviour: deleting a user who is a seller, an offer's buyer, or a product's committed buyer →
+   **rejected** by RESTRICT in each case. Deleting a product with offers → succeeds, and its offers go with it.
+9. `docker compose down && docker compose up -d` (keeping the volume) → migrations re-run with no error and no
+   duplicate objects; step 2 still shows one of each.
 
 ---
 
@@ -503,9 +513,10 @@ Use a normal window for **Alice (seller)** and an **incognito window** for **Bob
 5. Bob counters `90` → `201`, three offers.
 6. Above-list offer: Bob's next legal turn posts a price above the listed price → accepted.
 7. Seller self-offer: Alice tries to open a thread on her own product → rejected.
-8. Duplicate thread: Bob tries to open a *second* thread on the same product → rejected (unique constraint from LM-02).
+8. Duplicate thread: Bob posts again while it is Alice's turn → rejected. A *second* thread is not a state that
+   exists — Bob's offers all share the same (product, buyer) pair (T-22), so this is the turn check, not a constraint.
 9. Thread isolation: Carol opens her own thread on the same product with `70` → `201`;
-   `psql $DB -c "select thread_id, count(*) from offers where product_id='<id>' group by 1;"` → two distinct threads.
+   `psql $DB -c "select buyer_id, count(*) from offers where product_id='<id>' group by 1;"` → two distinct buyers.
    Confirm Carol's action did not change whose turn it is in Bob's thread.
 10. Terminal state: `update products set status='Sold' where id='<id>';` then post any offer → rejected. Restore.
 11. Validation: post `{"price":-5}` and `{"price":"abc"}` → both `400`.

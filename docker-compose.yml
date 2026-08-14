@@ -48,7 +48,26 @@ services:
              mc mb --ignore-existing local/$$S3_BUCKET &&
              echo bucket $$S3_BUCKET ready"
 
+  # Applies pending Drizzle migrations once the db is healthy, then exits 0.
+  # Shares the `api` image tag so Compose builds it once instead of twice.
+  # apps/api is mounted because the migration .sql files are generated on the
+  # host after the image is built, so the baked-in copy would be stale.
+  migrate:
+    image: linkby-marketplace-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: npm run db:migrate
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      - ./apps/api:/app/apps/api
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
+    image: linkby-marketplace-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -71,6 +90,8 @@ services:
       db:
         condition: service_healthy
       storage-init:
+        condition: service_completed_successfully
+      migrate:
         condition: service_completed_successfully
 
   web:
