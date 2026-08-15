@@ -5,6 +5,7 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().default(3000),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   DATABASE_URL: z.string(),
+  JWT_SECRET: z.string().min(32),
   S3_ENDPOINT: z.string(),
   S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string(),

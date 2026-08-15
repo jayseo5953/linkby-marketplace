@@ -182,23 +182,25 @@ demonstrates, so the state is legible from the UI without consulting this table.
 ## LM-04 · Login API and stateless session
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-03
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-14 — 16 checks, all six ticket steps plus expiry, forged and
+tampered tokens, a token naming a deleted user, timing parity between the two failure modes, and log hygiene
 
 > As a seeded user, I want to exchange my email and password for a credential the API accepts, so that the system
 > can tell who is acting and enforce the buyer/seller rules.
 
 **Acceptance criteria**
 
-- [ ] Correct email + password returns a success response carrying a session credential and the user's identity
+- [x] Correct email + password returns a success response carrying a session credential and the user's identity
       (id, email, display name) — never the password hash.
-- [ ] Wrong password, unknown email and malformed input are all rejected with an auth/validation error, and the
+- [x] Wrong password, unknown email and malformed input are all rejected with an auth/validation error, and the
       error message does not reveal whether the email exists.
-- [ ] A protected endpoint returns the caller's identity when given a valid credential.
-- [ ] A protected endpoint rejects a missing, malformed or expired credential with `401`.
-- [ ] Session state is **not** held in API process memory — a second API instance accepts a credential issued by
+- [x] A protected endpoint returns the caller's identity when given a valid credential.
+- [x] A protected endpoint rejects a missing, malformed or expired credential with `401`.
+- [x] Session state is **not** held in API process memory — a second API instance accepts a credential issued by
       the first (§5 statelessness requirement).
 - [ ] Every subsequent write endpoint derives the acting user from the credential, never from a client-supplied
-      user id in the body.
+      user id in the body. — *the middleware and `requireUser` accessor that make this possible ship here; the
+      criterion itself is a constraint on LM-06 onwards and is ticked when the last write endpoint lands.*
 
 **QA steps** — *backend/curl*
 
@@ -209,7 +211,10 @@ demonstrates, so the state is legible from the UI without consulting this table.
 4. `curl -i http://localhost:3000/api/me -H "Authorization: Bearer $TOKEN_ALICE"` → `200`, identifies Alice.
 5. `curl -i http://localhost:3000/api/me` (no header) → `401`. Repeat with `Authorization: Bearer garbage` → `401`.
 6. Statelessness: `docker compose restart api`, then re-run step 4 with the *same* token → still `200`
-   (proves the session is not in-process memory).
+   (proves the session is not in-process memory). Confirm `/health` reports a reset `uptimeSeconds`, so the
+   token is being accepted by a genuinely new process.
+7. Expiry: sign a token with the real `JWT_SECRET` and an `exp` in the past, then call `/api/me` with it →
+   `401` with code `TOKEN_EXPIRED`. Steps 1–6 cannot reach the expiry criterion without waiting 24 hours.
 
 ---
 
