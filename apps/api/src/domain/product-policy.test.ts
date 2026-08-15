@@ -1,6 +1,13 @@
 import type { OfferSide, SessionUser } from '@linkby/shared';
 import { describe, expect, it } from 'vitest';
-import { type OfferEntity, type ProductEntity, ProductPolicy } from './product-policy';
+import {
+  NegotiationRefusal,
+  type OfferEntity,
+  type ProductEntity,
+  ProductPolicy,
+  PurchaseRefusal,
+  RespondRefusal,
+} from './product-policy';
 
 const alice: SessionUser = { id: 1, email: 'alice@example.com', displayName: 'Alice' };
 const bob: SessionUser = { id: 2, email: 'bob@example.com', displayName: 'Bob' };
@@ -91,6 +98,50 @@ describe('canPurchase — §4.4 truth table', () => {
   });
 });
 
+describe('refusalToPurchase', () => {
+  it('tells the seller it is their own product, whatever else is true', () => {
+    const sold = { status: 'Sold' as const, buyerId: bob.id };
+    expect(policyFor(alice).refusalToPurchase()).toBe(PurchaseRefusal.OwnProduct);
+    expect(policyFor(alice, sold).refusalToPurchase()).toBe(PurchaseRefusal.OwnProduct);
+  });
+
+  it('separates a gone product from the buyer’s own open negotiation', () => {
+    const sold = { status: 'Sold' as const, buyerId: carol.id };
+    expect(policyFor(bob, sold).refusalToPurchase()).toBe(PurchaseRefusal.NotAvailable);
+    expect(policyFor(bob, {}, thread(bob.id, 'buyer')).refusalToPurchase()).toBe(
+      PurchaseRefusal.NegotiationOpen,
+    );
+  });
+
+  it('reports the gone product first, since the open thread is then moot', () => {
+    const offers = thread(bob.id, 'buyer');
+    const reserved = { status: 'Reserved' as const, buyerId: carol.id };
+    expect(policyFor(bob, reserved, offers).refusalToPurchase()).toBe(PurchaseRefusal.NotAvailable);
+  });
+
+  it('is null for the reserved buyer, who is exempt from both', () => {
+    const offers = thread(bob.id, 'buyer', 'seller');
+    const reserved = { status: 'Reserved' as const, buyerId: bob.id, finalPriceCents: 20000 };
+    expect(policyFor(bob, reserved, offers).refusalToPurchase()).toBeNull();
+  });
+});
+
+describe('refusalToStartNegotiation', () => {
+  it('names each rule that can stop a thread being opened', () => {
+    expect(policyFor(alice).refusalToStartNegotiation()).toBe(NegotiationRefusal.OwnProduct);
+    expect(
+      policyFor(bob, { status: 'Sold', buyerId: carol.id }).refusalToStartNegotiation(),
+    ).toBe(NegotiationRefusal.NotAvailable);
+    expect(policyFor(bob, {}, thread(bob.id, 'buyer')).refusalToStartNegotiation()).toBe(
+      NegotiationRefusal.ThreadOpen,
+    );
+  });
+
+  it('is null when the thread may be opened', () => {
+    expect(policyFor(bob).refusalToStartNegotiation()).toBeNull();
+  });
+});
+
 describe('purchasePriceCents', () => {
   it('charges the listed price on a direct purchase', () => {
     expect(policyFor(bob, { priceCents: 25000 }).purchasePriceCents).toBe(25000);
@@ -137,44 +188,48 @@ describe('canStartNegotiation', () => {
   });
 });
 
-describe('canRespondTo — turns alternate within a thread', () => {
+describe('refusalToRespond — turns alternate within a thread', () => {
   it('lets the seller answer a buyer, and not the buyer who just spoke', () => {
     const offers = thread(bob.id, 'buyer');
     const opening = offers[0]!;
 
-    expect(policyFor(alice, {}, offers).canRespondTo(opening)).toBe(true);
-    expect(policyFor(bob, {}, offers).canRespondTo(opening)).toBe(false);
+    expect(policyFor(alice, {}, offers).refusalToRespond(opening)).toBeNull();
+    expect(policyFor(bob, {}, offers).refusalToRespond(opening)).toBe(RespondRefusal.NotYourTurn);
   });
 
   it("lets the buyer answer the seller's counter, and not the seller again", () => {
     const offers = thread(bob.id, 'buyer', 'seller');
     const counter = offers[1]!;
 
-    expect(policyFor(bob, {}, offers).canRespondTo(counter)).toBe(true);
-    expect(policyFor(alice, {}, offers).canRespondTo(counter)).toBe(false);
+    expect(policyFor(bob, {}, offers).refusalToRespond(counter)).toBeNull();
+    expect(policyFor(alice, {}, offers).refusalToRespond(counter)).toBe(RespondRefusal.NotYourTurn);
   });
 
   it('lets nobody act once the product has left Available', () => {
     const offers = thread(bob.id, 'buyer');
     const reserved = { status: 'Reserved' as const, buyerId: bob.id };
 
-    expect(policyFor(alice, reserved, offers).canRespondTo(offers[0]!)).toBe(false);
-    expect(policyFor(bob, reserved, offers).canRespondTo(offers[0]!)).toBe(false);
+    expect(policyFor(alice, reserved, offers).refusalToRespond(offers[0]!)).toBe(
+      RespondRefusal.NotAvailable,
+    );
+    expect(policyFor(bob, reserved, offers).refusalToRespond(offers[0]!)).toBe(
+      RespondRefusal.NotAvailable,
+    );
   });
 });
 
-describe('canRespondTo — only the newest offer in a thread is actionable', () => {
+describe('refusalToRespond — only the newest offer in a thread is actionable', () => {
   it('refuses the seller an earlier buyer offer they could once have answered', () => {
     const offers = thread(bob.id, 'buyer', 'seller', 'buyer');
     const policy = policyFor(alice, {}, offers);
 
     // Both were made by the buyer, so read on their own they are indistinguishable to the seller.
-    expect(policy.canRespondTo(offers[0]!)).toBe(false);
-    expect(policy.canRespondTo(offers[2]!)).toBe(true);
+    expect(policy.refusalToRespond(offers[0]!)).toBe(RespondRefusal.Superseded);
+    expect(policy.refusalToRespond(offers[2]!)).toBeNull();
   });
 });
 
-describe('canRespondTo — threads are isolated from each other', () => {
+describe('refusalToRespond — threads are isolated from each other', () => {
   const offers = [
     ...thread(bob.id, 'buyer', 'seller'), // Bob's turn
     ...thread(carol.id, 'buyer'), // Alice's turn
@@ -186,16 +241,18 @@ describe('canRespondTo — threads are isolated from each other', () => {
     const policy = policyFor(alice, {}, offers);
 
     // Alice already countered Bob and it is his turn, which must not stop her answering Carol.
-    expect(policy.canRespondTo(bobsNewest)).toBe(false);
-    expect(policy.canRespondTo(carolsNewest)).toBe(true);
+    expect(policy.refusalToRespond(bobsNewest)).toBe(RespondRefusal.NotYourTurn);
+    expect(policy.refusalToRespond(carolsNewest)).toBeNull();
   });
 
   it("refuses a buyer any offer in another buyer's thread", () => {
-    expect(policyFor(carol, {}, offers).canRespondTo(bobsNewest)).toBe(false);
+    expect(policyFor(carol, {}, offers).refusalToRespond(bobsNewest)).toBe(
+      RespondRefusal.NotYourTurn,
+    );
   });
 
   it('leaves whose turn it is in one thread untouched when another buyer acts', () => {
-    expect(policyFor(bob, {}, offers).canRespondTo(bobsNewest)).toBe(true);
+    expect(policyFor(bob, {}, offers).refusalToRespond(bobsNewest)).toBeNull();
   });
 });
 
@@ -208,7 +265,7 @@ describe('refusalToRespond — why, not just whether', () => {
   it('reports the product first, since it outranks whose turn it is', () => {
     const offers = thread(bob.id, 'buyer');
     const reserved = { status: 'Reserved' as const, buyerId: bob.id };
-    expect(policyFor(alice, reserved, offers).refusalToRespond(offers[0]!)).toBe('not-available');
+    expect(policyFor(alice, reserved, offers).refusalToRespond(offers[0]!)).toBe(RespondRefusal.NotAvailable);
   });
 
   // The case the offer id exists for: a tab left open across a full round trip still shows the
@@ -218,18 +275,18 @@ describe('refusalToRespond — why, not just whether', () => {
     const policy = policyFor(bob, {}, offers);
 
     // It is Bob's turn either way, so the turn check alone would have let the stale one through.
-    expect(policy.refusalToRespond(offers[1]!)).toBe('superseded');
+    expect(policy.refusalToRespond(offers[1]!)).toBe(RespondRefusal.Superseded);
     expect(policy.refusalToRespond(offers[3]!)).toBeNull();
   });
 
   it('reports the side that cannot answer as out of turn', () => {
     const offers = thread(bob.id, 'buyer');
-    expect(policyFor(bob, {}, offers).refusalToRespond(offers[0]!)).toBe('not-your-turn');
+    expect(policyFor(bob, {}, offers).refusalToRespond(offers[0]!)).toBe(RespondRefusal.NotYourTurn);
   });
 
   it("reports another buyer's thread as out of turn", () => {
     const offers = thread(bob.id, 'buyer', 'seller');
-    expect(policyFor(carol, {}, offers).refusalToRespond(offers[1]!)).toBe('not-your-turn');
+    expect(policyFor(carol, {}, offers).refusalToRespond(offers[1]!)).toBe(RespondRefusal.NotYourTurn);
   });
 });
 
@@ -246,16 +303,12 @@ describe('after an offer is accepted', () => {
 
   it("freezes the loser's thread even though it was her turn", () => {
     expect(policyFor(carol, {}, offers).refusalToRespond(carolsNewest)).toBeNull();
-    expect(policyFor(carol, reserved, offers).refusalToRespond(carolsNewest)).toBe('not-available');
+    expect(policyFor(carol, reserved, offers).refusalToRespond(carolsNewest)).toBe(RespondRefusal.NotAvailable);
   });
 
   it('freezes the winning thread too — the negotiation is over, not paused', () => {
-    expect(policyFor(bob, reserved, offers).refusalToRespond(bobsNewest)).toBe('not-available');
-    expect(policyFor(alice, reserved, offers).refusalToRespond(carolsNewest)).toBe('not-available');
-  });
-
-  it('refuses a second acceptance, which is what the losing buyer sends', () => {
-    expect(policyFor(carol, reserved, offers).canRespondTo(carolsNewest)).toBe(false);
+    expect(policyFor(bob, reserved, offers).refusalToRespond(bobsNewest)).toBe(RespondRefusal.NotAvailable);
+    expect(policyFor(alice, reserved, offers).refusalToRespond(carolsNewest)).toBe(RespondRefusal.NotAvailable);
   });
 
   it('leaves the reserved buyer the purchase, at the accepted price', () => {

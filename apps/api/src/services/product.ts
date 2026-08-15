@@ -7,12 +7,24 @@ import type {
   SessionUser,
 } from '@linkby/shared';
 import { db, type Executor } from '../db/client';
-import { type PolicyInput, type ProductEntity, ProductPolicy } from '../domain/product-policy';
+import {
+  type PolicyInput,
+  type ProductEntity,
+  ProductPolicy,
+  PurchaseRefusal,
+} from '../domain/product-policy';
 import { ConflictError, NotFoundError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import * as offerRepo from '../repositories/offer.repo';
 import * as productRepo from '../repositories/product.repo';
 import { deleteObjects, publicUrl, putObject } from '../storage/client';
+
+const PURCHASE_MESSAGES: Record<PurchaseRefusal, string> = {
+  [PurchaseRefusal.OwnProduct]: 'You cannot buy your own product',
+  [PurchaseRefusal.NotAvailable]: 'This product is no longer available',
+  [PurchaseRefusal.NegotiationOpen]:
+    'Settle your open negotiation on this product before buying it',
+};
 
 const EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -109,12 +121,8 @@ export async function purchaseProduct(
     if (!product) throw new NotFoundError(`No product with id ${id}`);
 
     const policy = new ProductPolicy(await buildPolicyInput(viewer, product, tx));
-    if (!policy.canPurchase) {
-      throw new ConflictError(
-        'This product is no longer available for you to purchase',
-        'PURCHASE_NOT_ALLOWED',
-      );
-    }
+    const refusal = policy.refusalToPurchase();
+    if (refusal) throw new ConflictError(PURCHASE_MESSAGES[refusal], refusal);
 
     // Non-null by `canPurchase`, which is the only thing that can produce a price here.
     await productRepo.markSold(

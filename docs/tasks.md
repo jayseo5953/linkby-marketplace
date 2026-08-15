@@ -436,7 +436,10 @@ forced insert failure confirming uploaded objects are cleaned up.
 **Priority:** P0 · **Estimate:** 2.5h · **Depends on:** LM-07
 **Status:** Done · **QA:** passed 2026-08-15 — 44 checks covering all 7 steps, plus the malformed-id table and the
 detail endpoint's viewer block. Step 7 run as ten parallel attempts by two buyers: one `200`, nine `409`, one buyer
-recorded. Refusals share one code (`PURCHASE_NOT_ALLOWED`) by decision, not four.
+recorded.
+**Revised 2026-08-15:** each refusal now carries its own code — `OWN_PRODUCT`, `PRODUCT_NOT_AVAILABLE`,
+`NEGOTIATION_OPEN` — instead of one shared `PURCHASE_NOT_ALLOWED`, so the UI can tell a buyer whether to settle
+their negotiation or give up on the product. QA re-run: 47 checks.
 
 > As a buyer, I want my purchase to either complete or be cleanly refused, so that a product can never be sold twice
 > and I can never buy something I am not entitled to (§2.3).

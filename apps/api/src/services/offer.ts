@@ -5,48 +5,43 @@ import type {
   SessionUser,
 } from '@linkby/shared';
 import { db } from '../db/client';
-import { type OfferEntity, ProductPolicy, type RespondRefusal } from '../domain/product-policy';
+import {
+  NegotiationRefusal,
+  type OfferEntity,
+  ProductPolicy,
+  RespondRefusal,
+} from '../domain/product-policy';
 import { ConflictError, NotFoundError } from '../lib/errors';
 import * as offerRepo from '../repositories/offer.repo';
 import * as productRepo from '../repositories/product.repo';
 import { buildPolicyInput, getProduct } from './product';
 
-const REFUSALS: Record<RespondRefusal, { message: string; code: string }> = {
-  'not-available': {
-    message: 'This product is no longer available to negotiate on',
-    code: 'PRODUCT_NOT_AVAILABLE',
-  },
-  superseded: {
-    message: 'A newer offer has been made in this negotiation',
-    code: 'OFFER_SUPERSEDED',
-  },
-  'not-your-turn': {
-    message: 'It is not your turn to respond in this negotiation',
-    code: 'NOT_YOUR_TURN',
-  },
+const NEGOTIATION_MESSAGES: Record<NegotiationRefusal, string> = {
+  [NegotiationRefusal.OwnProduct]: 'You cannot negotiate on your own product',
+  [NegotiationRefusal.NotAvailable]: 'This product is no longer available to negotiate on',
+  [NegotiationRefusal.ThreadOpen]: 'You already have a negotiation open on this product',
+};
+
+const RESPOND_MESSAGES: Record<RespondRefusal, string> = {
+  [RespondRefusal.NotAvailable]: 'This product is no longer available to negotiate on',
+  [RespondRefusal.Superseded]: 'A newer offer has been made in this negotiation',
+  [RespondRefusal.NotYourTurn]: 'It is not your turn to respond in this negotiation',
 };
 
 function toResponse(offer: OfferEntity): OfferResponse {
   return { ...offer, createdAt: offer.createdAt.toISOString() };
 }
 
-function refusalError(refusal: RespondRefusal): ConflictError {
-  const { message, code } = REFUSALS[refusal];
-  return new ConflictError(message, code);
-}
-
-/** The thread the offer belongs in, or the refusal that stops it being written at all. */
 function resolveThread(
   viewer: SessionUser,
   policy: ProductPolicy,
   inReplyToOfferId: number | undefined,
 ): number {
   if (inReplyToOfferId === undefined) {
-    if (policy.canStartNegotiation) return viewer.id;
-    throw new ConflictError(
-      'You cannot open a negotiation on this product',
-      'NEGOTIATION_NOT_ALLOWED',
-    );
+    const refusal = policy.refusalToStartNegotiation();
+    if (refusal) throw new ConflictError(NEGOTIATION_MESSAGES[refusal], refusal);
+
+    return viewer.id;
   }
 
   const answered = policy.offerById(inReplyToOfferId);
@@ -55,7 +50,7 @@ function resolveThread(
   }
 
   const refusal = policy.refusalToRespond(answered);
-  if (refusal) throw refusalError(refusal);
+  if (refusal) throw new ConflictError(RESPOND_MESSAGES[refusal], refusal);
 
   return answered.buyerId;
 }
@@ -85,8 +80,7 @@ export async function acceptOffer(
   viewer: SessionUser,
   offerId: number,
 ): Promise<ProductDetailResponse> {
-  // Offers are immutable, so this read needs no lock — everything that varies with time is the
-  // product's status and which offer is newest, and both are read inside the lock below.
+  // Unlocked: offers are immutable, and what varies with time is re-read inside the lock.
   const target = await offerRepo.findById(offerId);
   if (target === undefined) throw new NotFoundError(`No offer with id ${offerId}`);
 
@@ -96,7 +90,7 @@ export async function acceptOffer(
 
     const policy = new ProductPolicy(await buildPolicyInput(viewer, product, tx));
     const refusal = policy.refusalToRespond(target);
-    if (refusal) throw refusalError(refusal);
+    if (refusal) throw new ConflictError(RESPOND_MESSAGES[refusal], refusal);
 
     await productRepo.markReserved(
       target.productId,

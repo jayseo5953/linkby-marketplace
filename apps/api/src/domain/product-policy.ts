@@ -4,7 +4,24 @@ import type { offers, products } from '../db/schema';
 export type ProductEntity = typeof products.$inferSelect;
 export type OfferEntity = typeof offers.$inferSelect;
 
-export type RespondRefusal = 'not-available' | 'superseded' | 'not-your-turn';
+// A refusal's value is the code the caller receives.
+export enum PurchaseRefusal {
+  OwnProduct = 'OWN_PRODUCT',
+  NotAvailable = 'PRODUCT_NOT_AVAILABLE',
+  NegotiationOpen = 'NEGOTIATION_OPEN',
+}
+
+export enum NegotiationRefusal {
+  OwnProduct = 'OWN_PRODUCT',
+  NotAvailable = 'PRODUCT_NOT_AVAILABLE',
+  ThreadOpen = 'THREAD_ALREADY_OPEN',
+}
+
+export enum RespondRefusal {
+  NotAvailable = 'PRODUCT_NOT_AVAILABLE',
+  Superseded = 'OFFER_SUPERSEDED',
+  NotYourTurn = 'NOT_YOUR_TURN',
+}
 
 export type PolicyInput = {
   viewer: SessionUser;
@@ -64,10 +81,24 @@ export class ProductPolicy {
     return this.isBuyer && offer.buyerId === this.input.viewer.id && offer.madeBy === 'seller';
   }
 
+  // Ordered: the least recoverable rule reports first.
+  private firstUnmet<R>(required: readonly (readonly [boolean, R])[]): R | null {
+    return required.find(([holds]) => !holds)?.[1] ?? null;
+  }
+
+  refusalToPurchase(): PurchaseRefusal | null {
+    if (this.isSeller) return PurchaseRefusal.OwnProduct;
+    // The one disjunction: the reserved buyer buys despite both rules below.
+    if (this.isReservedForViewer) return null;
+
+    return this.firstUnmet([
+      [this.isAvailable, PurchaseRefusal.NotAvailable],
+      [!this.hasOpenThread, PurchaseRefusal.NegotiationOpen],
+    ]);
+  }
+
   get canPurchase(): boolean {
-    return (
-      this.isBuyer && ((this.isAvailable && !this.hasOpenThread) || this.isReservedForViewer)
-    );
+    return this.refusalToPurchase() === null;
   }
 
   get purchasePriceCents(): number | null {
@@ -75,24 +106,25 @@ export class ProductPolicy {
     return this.canPurchase ? (finalPriceCents ?? priceCents) : null;
   }
 
+  refusalToStartNegotiation(): NegotiationRefusal | null {
+    return this.firstUnmet([
+      [this.isBuyer, NegotiationRefusal.OwnProduct],
+      [this.isAvailable, NegotiationRefusal.NotAvailable],
+      [!this.hasOpenThread, NegotiationRefusal.ThreadOpen],
+    ]);
+  }
+
   get canStartNegotiation(): boolean {
-    return this.isBuyer && this.isAvailable && !this.hasOpenThread;
+    return this.refusalToStartNegotiation() === null;
   }
 
-  /** Accepting and countering are permitted under identical conditions, so they share a predicate. */
-  canRespondTo(offer: OfferEntity): boolean {
-    return this.refusalToRespond(offer) === null;
-  }
-
-  // Each row is a condition that must hold, paired with what its failure means to the caller.
+  // Accepting and countering are permitted under identical conditions.
   refusalToRespond(offer: OfferEntity): RespondRefusal | null {
-    const required = [
-      [this.isAvailable, 'not-available'],
-      [this.isNewestInThread(offer), 'superseded'],
-      [this.sellerMayAnswer(offer) || this.buyerMayAnswer(offer), 'not-your-turn'],
-    ] as const;
-
-    return required.find(([holds]) => !holds)?.[1] ?? null;
+    return this.firstUnmet([
+      [this.isAvailable, RespondRefusal.NotAvailable],
+      [this.isNewestInThread(offer), RespondRefusal.Superseded],
+      [this.sellerMayAnswer(offer) || this.buyerMayAnswer(offer), RespondRefusal.NotYourTurn],
+    ]);
   }
 
   // Getters do not survive `JSON.stringify`, so the wire shape is stated rather than inherited.
