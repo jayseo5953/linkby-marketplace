@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type {
   CreateProductRequest,
+  ProductDetailResponse,
   ProductListItemResponse,
   ProductResponse,
   SessionUser,
 } from '@linkby/shared';
-import { NotFoundError } from '../lib/errors';
+import { db, type Executor } from '../db/client';
+import { type PolicyInput, type ProductEntity, ProductPolicy } from '../domain/product-policy';
+import { ConflictError, NotFoundError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import * as productRepo from '../repositories/product.repo';
 import { deleteObjects, publicUrl, putObject } from '../storage/client';
@@ -17,10 +20,6 @@ const EXTENSIONS: Record<string, string> = {
   'image/svg+xml': 'svg',
 };
 
-// Flat keys: nothing needs the product id, and not needing it is what lets the upload run first (T-45).
-function keyFor(mimetype: string): string {
-  return `products/${randomUUID()}.${EXTENSIONS[mimetype] ?? 'bin'}`;
-}
 
 export async function createProduct(
   seller: SessionUser,
@@ -56,6 +55,7 @@ export async function createProduct(
     status: 'Available',
     seller: { id: seller.id, displayName: seller.displayName },
     buyerId: null,
+    finalPriceCents: null,
     imageUrls: imageKeys.map(publicUrl),
     createdAt: created.createdAt.toISOString(),
   };
@@ -75,14 +75,62 @@ export async function listProducts(): Promise<ProductListItemResponse[]> {
   }));
 }
 
-/**
- * Takes the raw path segment: an id that is not a number is not a product either, so both it and a
- * number matching no row leave by the same 404 rather than splitting into a 400 (T-51).
- */
-export async function getProduct(id: string): Promise<ProductResponse> {
-  const row = /^\d+$/.test(id) ? await productRepo.findById(Number(id)) : undefined;
+/** The one place a policy input is assembled, so the read and the write cannot feed it differently. */
+async function buildPolicyInput(
+  viewer: SessionUser,
+  product: ProductEntity,
+  exec: Executor = db,
+): Promise<PolicyInput> {
+  return {
+    viewer,
+    product,
+    viewerHasNegotiation: await productRepo.hasOfferFrom(product.id, viewer.id, exec),
+  };
+}
+
+export async function getProduct(viewer: SessionUser, id: number): Promise<ProductDetailResponse> {
+  const row = await productRepo.findById(id);
   if (!row) throw new NotFoundError(`No product with id ${id}`);
 
-  const { imageKeys, createdAt, ...rest } = row;
-  return { ...rest, imageUrls: imageKeys.map(publicUrl), createdAt: createdAt.toISOString() };
+  const policy = new ProductPolicy(await buildPolicyInput(viewer, row));
+  const { sellerId, imageKeys, createdAt, ...rest } = row;
+
+  return {
+    ...rest,
+    imageUrls: imageKeys.map(publicUrl),
+    createdAt: createdAt.toISOString(),
+    viewer: policy.toViewer(),
+  };
+}
+
+export async function purchaseProduct(
+  viewer: SessionUser,
+  id: number,
+): Promise<ProductDetailResponse> {
+  await db.transaction(async (tx) => {
+    const product = await productRepo.lockById(id, tx);
+    if (!product) throw new NotFoundError(`No product with id ${id}`);
+
+    const policy = new ProductPolicy(await buildPolicyInput(viewer, product, tx));
+    if (!policy.canPurchase) {
+      throw new ConflictError(
+        'This product is no longer available for you to purchase',
+        'PURCHASE_NOT_ALLOWED',
+      );
+    }
+
+    // Non-null by `canPurchase`, which is the only thing that can produce a price here.
+    await productRepo.markSold(
+      id,
+      { buyerId: viewer.id, finalPriceCents: policy.purchasePriceCents! },
+      tx,
+    );
+  });
+
+  return getProduct(viewer, id);
+}
+
+// Flat keys: nothing needs the product id, and not needing it is what lets the upload run first (T-45).
+function keyFor(mimetype: string): string {
+  return `products/${randomUUID()}.${EXTENSIONS[mimetype] ?? 'bin'}`;
 }

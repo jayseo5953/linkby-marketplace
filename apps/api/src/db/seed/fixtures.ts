@@ -32,6 +32,8 @@ export type SeedProduct = {
   /** Omitted means `Available`, which the schema requires to have no buyer. */
   status?: ProductStatus;
   buyer?: UserHandle;
+  /** What the sale settled at. Required by the schema whenever `status` is not `Available`. */
+  finalPriceCents?: number;
   /** Chronological — largest `minutesAgo` first — so turn alternation reads off the page. */
   offers: SeedOffer[];
 };
@@ -124,6 +126,7 @@ export const products: SeedProduct[] = [
     imageCount: 2,
     status: 'Reserved',
     buyer: 'bob',
+    finalPriceCents: 85000,
     // bob's accepted offer is last, so nothing post-dates the acceptance.
     offers: [
       { buyer: 'carol', by: 'buyer', cents: 70000, minutesAgo: 800 },
@@ -140,6 +143,7 @@ export const products: SeedProduct[] = [
     imageCount: 1,
     status: 'Sold',
     buyer: 'carol',
+    finalPriceCents: 120000,
     offers: [
       { buyer: 'carol', by: 'buyer', cents: 110000, minutesAgo: 1400 },
       { buyer: 'carol', by: 'seller', cents: 128000, minutesAgo: 1300 },
@@ -155,6 +159,7 @@ export const products: SeedProduct[] = [
     imageCount: 1,
     status: 'Sold',
     buyer: 'alice',
+    finalPriceCents: 68000,
     offers: [],
   },
 ];

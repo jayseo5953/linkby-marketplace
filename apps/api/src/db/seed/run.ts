@@ -75,6 +75,7 @@ async function main(): Promise<void> {
         priceCents: product.priceCents,
         status: product.status ?? 'Available',
         buyerId: product.buyer ? userId(product.buyer) : null,
+        finalPriceCents: product.finalPriceCents ?? null,
       })),
     )
     .returning({ id: products.id, name: products.name });

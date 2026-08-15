@@ -20,3 +20,7 @@ pool.on('error', (error) => {
 });
 
 export const db = drizzle(pool, { schema });
+
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export type Executor = Tx | typeof db;

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/db/seed/run.ts"
@@ -31,6 +32,7 @@
     "@types/pg": "^8.11.6",
     "drizzle-kit": "^0.28.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "vitest": "^4.1.10"
   }
 }

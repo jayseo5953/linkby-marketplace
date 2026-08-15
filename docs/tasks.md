@@ -433,25 +433,25 @@ forced insert failure confirming uploaded objects are cleaned up.
 ## LM-11 · Purchase endpoint with atomic status transitions
 
 **Priority:** P0 · **Estimate:** 2.5h · **Depends on:** LM-07
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-15 — all 7 steps. Step 7 run as ten parallel attempts by two buyers: one `200`, nine `409`, one buyer recorded. Refusals share one code (`PURCHASE_NOT_ALLOWED`) by decision, not four.
 
 > As a buyer, I want my purchase to either complete or be cleanly refused, so that a product can never be sold twice
 > and I can never buy something I am not entitled to (§2.3).
 
 **Acceptance criteria**
 
-- [ ] Buyer purchasing an `Available` product with no negotiation of their own → status becomes `Sold`.
-- [ ] The reserved buyer purchasing a `Reserved` product → status becomes `Sold`, at the **accepted** price;
+- [x] Buyer purchasing an `Available` product with no negotiation of their own → status becomes `Sold`.
+- [x] The reserved buyer purchasing a `Reserved` product → status becomes `Sold`, at the **accepted** price;
       the endpoint takes no price input (§2.5 rule 8).
-- [ ] Blocked with a clear error: seller buying their own product; a non-reserved buyer buying a `Reserved`
+- [x] Blocked with a clear error: seller buying their own product; a non-reserved buyer buying a `Reserved`
       product; anyone buying a `Sold` product; a buyer with an open (not-yet-accepted) negotiation buying at the
       original price (§3.4).
-- [ ] The transition is a single guarded/conditional update keyed on current status (or a row lock) — not
+- [x] The transition is a single guarded/conditional update keyed on current status (or a row lock) — not
       read-then-write (§2.3).
-- [ ] Two concurrent purchase attempts on the same `Available` product: exactly one succeeds, the other gets a
+- [x] Two concurrent purchase attempts on the same `Available` product: exactly one succeeds, the other gets a
       conflict error. No path leaves the row in an inconsistent state.
-- [ ] All rules are enforced server-side, independent of whether the UI hid the button.
-- [ ] **Unit tests (§6):** direct-purchase happy path plus each blocked path — seller-buys-own,
+- [x] All rules are enforced server-side, independent of whether the UI hid the button.
+- [x] **Unit tests (§6):** direct-purchase happy path plus each blocked path — seller-buys-own,
       already-reserved-for-other, already-sold, negotiation-in-progress.
 
 **QA steps** — *backend/curl + SQL*
@@ -461,9 +461,10 @@ forced insert failure confirming uploaded objects are cleaned up.
 2. Already sold: repeat the same call → `409`/`400`, status stays `Sold` in SQL.
 3. Seller buys own: on a fresh `Available` product owned by Alice,
    `curl -i … -H "Authorization: Bearer $TOKEN_ALICE"` → error; SQL status still `Available`.
-4. Reserved for someone else: set up a reservation (via LM-14, or `update products set status='Reserved',
-   reserved_buyer_id=<bob> where id='<id>';`) then purchase as Carol → error; status unchanged. Then purchase as
-   Bob → `200`, status `Sold`.
+4. Reserved for someone else: use a seeded `Reserved` product (or set one up via LM-14 — a manual
+   `update` must set `status`, `buyer_id` **and** `final_price_cents` together, since a check constraint ties them).
+   Purchase as Carol → error; status unchanged. Then purchase as Bob → `200`, status `Sold`, and
+   `final_price_cents` is the **accepted** amount, not `price_cents`.
 5. Negotiation in progress: with Bob holding an open thread on a product (LM-13), purchase as Bob → error;
    status stays `Available`.
 6. Unauthenticated purchase → `401`.

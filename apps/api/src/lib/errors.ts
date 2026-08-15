@@ -25,6 +25,14 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+/** The request was well formed and the caller entitled to try; the product's state refused it. */
+export class ConflictError extends AppError {
+  constructor(message: string, code = 'CONFLICT') {
+    super(message, 409, code);
+    this.name = 'ConflictError';
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message: string, code = 'NOT_FOUND') {
     super(message, 404, code);

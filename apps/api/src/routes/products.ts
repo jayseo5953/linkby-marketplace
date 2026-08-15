@@ -2,7 +2,7 @@ import { createProductRequestSchema } from '@linkby/shared';
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate';
 import { uploadImages } from '../middleware/upload';
-import { validate } from '../middleware/validate';
+import { parseId, validate } from '../middleware/validate';
 import * as productService from '../services/product';
 
 export const productRouter = Router();
@@ -25,7 +25,16 @@ productRouter.get('/api/products', authenticate, async (_req, res) => {
   res.status(200).json(await productService.listProducts());
 });
 
-// Typed params, because Express 5 widens `req.params` to allow the repeated and wildcard forms.
-productRouter.get<{ id: string }>('/api/products/:id', authenticate, async (req, res) => {
-  res.status(200).json(await productService.getProduct(req.params.id));
+productRouter.get('/api/products/:id', authenticate, parseId, async (req, res) => {
+  res.status(200).json(await productService.getProduct(req.user, req.id));
 });
+
+// A purchase is an event, not a field edit — PATCH would invite a client to name the outcome (T-55).
+productRouter.post(
+  '/api/products/:id/purchase',
+  authenticate,
+  parseId,
+  async (req, res) => {
+    res.status(200).json(await productService.purchaseProduct(req.user, req.id));
+  },
+);

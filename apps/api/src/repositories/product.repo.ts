@@ -1,6 +1,7 @@
-import { desc, eq } from 'drizzle-orm';
-import { db } from '../db/client';
-import { products, users } from '../db/schema';
+import { and, desc, eq } from 'drizzle-orm';
+import { db, type Executor, type Tx } from '../db/client';
+import { offers, products, users } from '../db/schema';
+import type { ProductEntity } from '../domain/product-policy';
 
 export type ProductRow = {
   id: number;
@@ -8,8 +9,11 @@ export type ProductRow = {
   description: string;
   priceCents: number;
   status: (typeof products.status.enumValues)[number];
+  // Both the joined seller and the raw column: the display name renders, the id decides policy.
+  sellerId: number;
   seller: { id: number; displayName: string };
   buyerId: number | null;
+  finalPriceCents: number | null;
   imageKeys: string[];
   createdAt: Date;
 };
@@ -20,8 +24,10 @@ const columns = {
   description: products.description,
   priceCents: products.priceCents,
   status: products.status,
+  sellerId: products.sellerId,
   seller: { id: users.id, displayName: users.displayName },
   buyerId: products.buyerId,
+  finalPriceCents: products.finalPriceCents,
   imageKeys: products.imageKeys,
   createdAt: products.createdAt,
 };
@@ -45,6 +51,35 @@ export async function findById(id: number): Promise<ProductRow | undefined> {
     .limit(1);
 
   return rows[0];
+}
+
+// Unjoined: `for update` across a join would lock the seller's row and serialise their catalogue.
+export async function lockById(id: number, tx: Tx): Promise<ProductEntity | undefined> {
+  const rows = await tx.select().from(products).where(eq(products.id, id)).for('update').limit(1);
+
+  return rows[0];
+}
+
+export async function markSold(
+  id: number,
+  values: { buyerId: number; finalPriceCents: number },
+  exec: Executor = db,
+): Promise<void> {
+  await exec.update(products).set({ status: 'Sold', ...values }).where(eq(products.id, id));
+}
+
+export async function hasOfferFrom(
+  productId: number,
+  buyerId: number,
+  exec: Executor = db,
+): Promise<boolean> {
+  const rows = await exec
+    .select({ id: offers.id })
+    .from(offers)
+    .where(and(eq(offers.productId, productId), eq(offers.buyerId, buyerId)))
+    .limit(1);
+
+  return rows.length > 0;
 }
 
 export async function insert(values: {

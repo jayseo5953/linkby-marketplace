@@ -40,6 +40,9 @@ export const products = pgTable(
     buyerId: bigint('buyer_id', { mode: 'number' }).references(() => users.id, {
       onDelete: 'restrict',
     }),
+    // What the product actually transacted at. Separate from `price_cents`, which stays the listed
+    // price for the life of the row (§2.4) even when a negotiation settles somewhere else.
+    finalPriceCents: bigint('final_price_cents', { mode: 'number' }),
     imageKeys: text('image_keys')
       .array()
       .notNull()
@@ -54,6 +57,14 @@ export const products = pgTable(
     check(
       'products_buyer_matches_status',
       sql`(${table.status} = 'Available') = (${table.buyerId} is null)`,
+    ),
+    check(
+      'products_final_price_matches_status',
+      sql`(${table.status} = 'Available') = (${table.finalPriceCents} is null)`,
+    ),
+    check(
+      'products_final_price_cents_positive',
+      sql`${table.finalPriceCents} is null or ${table.finalPriceCents} > 0`,
     ),
     check(
       'products_buyer_not_seller',

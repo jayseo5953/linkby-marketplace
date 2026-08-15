@@ -38,10 +38,25 @@ export const productResponseSchema = z.object({
   priceCents: z.number().int().positive(),
   status: z.enum(PRODUCT_STATUSES),
   seller: sellerSchema,
-  // The raw column, not `isMine` — the viewer knows its own id and can compare (T-50).
   buyerId: z.number().int().positive().nullable(),
+  // What the sale settled at. Null until there is a sale; never overwrites the listed price (§2.4).
+  finalPriceCents: z.number().int().positive().nullable(),
   imageUrls: z.array(z.string()),
   createdAt: z.string(),
+});
+
+/**
+ * What this viewer may do with this product, decided by the server so that the rules exist in one
+ * place and the browser holds no copy of them (T-54).
+ */
+export const productViewerSchema = z.object({
+  canPurchase: z.boolean(),
+  // The amount Purchase would charge, so the button's label cannot drift from it.
+  purchasePriceCents: z.number().int().positive().nullable(),
+});
+
+export const productDetailResponseSchema = productResponseSchema.extend({
+  viewer: productViewerSchema,
 });
 
 // The card in §3.2, which shows one image and never the description.
@@ -57,4 +72,6 @@ export const productListItemResponseSchema = z.object({
 
 export type CreateProductRequest = z.infer<typeof createProductRequestSchema>;
 export type ProductResponse = z.infer<typeof productResponseSchema>;
+export type ProductViewer = z.infer<typeof productViewerSchema>;
+export type ProductDetailResponse = z.infer<typeof productDetailResponseSchema>;
 export type ProductListItemResponse = z.infer<typeof productListItemResponseSchema>;
