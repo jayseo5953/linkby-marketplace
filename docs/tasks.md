@@ -276,16 +276,17 @@ forced insert failure confirming uploaded objects are cleaned up.
 
 **QA steps** — *backend/curl + storage console*
 
-1. `curl -i -X POST http://localhost:3000/api/products -H "Authorization: Bearer $TOKEN_ALICE" -F 'name=Test Chair' -F 'price=120.00' -F 'description=A chair' -F 'images=@a.jpg' -F 'images=@b.jpg'`
+1. `curl -i -X POST http://localhost:3000/api/products -H "Authorization: Bearer $TOKEN_ALICE" -F 'name=Test Chair' -F 'priceCents=12000' -F 'description=A chair' -F 'images=@a.jpg' -F 'images=@b.jpg'`
    → `201`, body shows status `Available` and Alice as seller.
-2. `psql $DB -c "select name, price, status, seller_id from products where name='Test Chair';"` → one row, `Available`.
+2. `psql $DB -c "select name, price_cents, status, seller_id from products where name='Test Chair';"` → one row, `Available`, `price_cents` 12000.
 3. `psql $DB -c "select image_keys from products where name='Test Chair';"` → 2 keys, in upload order.
 4. Open the MinIO console → both objects present in the app bucket.
 5. `curl -i <image_url_from_step_1>` → `200` with an image content type.
 6. Repeat step 1 with six `-F 'images=@…'` flags → `400`, and `select count(*) from products where name=…` → 0 (nothing partially created).
 7. `dd if=/dev/zero of=big.jpg bs=1m count=6` then post it → `400` size error, nothing persisted.
-8. Repeat step 1 with `-F 'price=-5'` → `400`. With no `name` → `400`. With no `description` → `400`.
-   With a valid name/price/description but **no image parts at all** → `201` (images optional).
+8. Repeat step 1 with `-F 'priceCents=-5'` → `400`; likewise `priceCents=0`, `priceCents=abc` and `priceCents=120.00`,
+   since the field is whole cents. With no `name` → `400`. With no `description` → `400`. With a valid
+   name/priceCents/description but **no image parts at all** → `201` (images optional).
 9. Repeat step 1 with no `Authorization` header → `401`.
 
 ---
@@ -395,7 +396,7 @@ forced insert failure confirming uploaded objects are cleaned up.
 8. Click **Sell**, attach a >5MB file → visible error, Submit blocked.
 9. Fill a valid form and double-click **Submit** quickly → `psql $DB -c "select count(*) from products where name='<that name>';"` → `1`.
 10. Server-side enforcement of the same split:
-    `curl -i -X POST http://localhost:3000/api/products -H "Authorization: Bearer $TOKEN_ALICE" -F 'name=No Desc' -F 'price=10'`
+    `curl -i -X POST http://localhost:3000/api/products -H "Authorization: Bearer $TOKEN_ALICE" -F 'name=No Desc' -F 'priceCents=1000'`
     → `400`; the same call with `-F 'description=ok'` and no image parts → `201`.
 
 ---
@@ -433,7 +434,9 @@ forced insert failure confirming uploaded objects are cleaned up.
 ## LM-11 · Purchase endpoint with atomic status transitions
 
 **Priority:** P0 · **Estimate:** 2.5h · **Depends on:** LM-07
-**Status:** Done · **QA:** passed 2026-08-15 — all 7 steps. Step 7 run as ten parallel attempts by two buyers: one `200`, nine `409`, one buyer recorded. Refusals share one code (`PURCHASE_NOT_ALLOWED`) by decision, not four.
+**Status:** Done · **QA:** passed 2026-08-15 — 44 checks covering all 7 steps, plus the malformed-id table and the
+detail endpoint's viewer block. Step 7 run as ten parallel attempts by two buyers: one `200`, nine `409`, one buyer
+recorded. Refusals share one code (`PURCHASE_NOT_ALLOWED`) by decision, not four.
 
 > As a buyer, I want my purchase to either complete or be cleanly refused, so that a product can never be sold twice
 > and I can never buy something I am not entitled to (§2.3).
@@ -521,34 +524,36 @@ Use a normal window for **Alice (seller)** and an **incognito window** for **Bob
 ## LM-13 · Negotiation engine — open thread and counter
 
 **Priority:** P0 · **Estimate:** 2.5h · **Depends on:** LM-07
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-15 — 43 checks. Both turn violations, seller self-offer, thread naming in
+both directions, thread isolation with two unanswered seller counters live at once, terminal status, validation, and
+five concurrent offers on one thread giving one `201` and four `409`.
 
 > As a buyer or seller, I want to exchange counter offers in an orderly back-and-forth, so that we can converge on
 > a price before the sale completes (§2.5).
 
 **Acceptance criteria**
 
-- [ ] A buyer can open a thread on someone else's `Available` product with a first offer; the thread is scoped to
+- [x] A buyer can open a thread on someone else's `Available` product with a first offer; the thread is scoped to
       that (product, buyer) pair and the first offer is always buyer-initiated (rule 1).
-- [ ] The seller can counter on a buyer's thread; the buyer can counter back. No cap on the number of exchanges.
-- [ ] Turn alternation is enforced: the side that just offered cannot offer again until the other side responds —
+- [x] The seller can counter on a buyer's thread; the buyer can counter back. No cap on the number of exchanges.
+- [x] Turn alternation is enforced: the side that just offered cannot offer again until the other side responds —
       rejected with a clear error (rule 2).
-- [ ] Only the **latest** offer in a thread is actionable; countering an earlier offer is rejected (rule 3).
-- [ ] Offers above **and** below the listed price are accepted, from either side (rule 4).
-- [ ] **There is no cap on how many of a seller's counters may be live at once**. The
+- [x] Only the **latest** offer in a thread is actionable; countering an earlier offer is rejected (rule 3).
+- [x] Offers above **and** below the listed price are accepted, from either side (rule 4).
+- [x] **There is no cap on how many of a seller's counters may be live at once**. The
       seller may counter in any number of buyers' threads and leave them all unanswered simultaneously. Do **not**
       implement a one-at-a-time restriction, a "finish this thread first" gate, or any per-seller lock — turn
       alternation is scoped to a single thread and never across threads.
-- [ ] A seller cannot open a thread on their own product; a buyer cannot open a second thread on the same product.
-- [ ] No new offers are accepted once the product is `Reserved` or `Sold` (rule 7).
-- [ ] Non-numeric, zero and negative prices are rejected.
-- [ ] Each offer persists timestamp, thread/buyer, `madeBy` and price.
-- [ ] **Unit tests (§6):** turn-alternation enforcement, only-latest-offer-actionable, multi-buyer thread isolation.
+- [x] A seller cannot open a thread on their own product; a buyer cannot open a second thread on the same product.
+- [x] No new offers are accepted once the product is `Reserved` or `Sold` (rule 7).
+- [x] Non-numeric, zero and negative prices are rejected.
+- [x] Each offer persists timestamp, thread/buyer, `madeBy` and price.
+- [x] **Unit tests (§6):** turn-alternation enforcement, only-latest-offer-actionable, multi-buyer thread isolation.
 
 **QA steps** — *backend/curl + SQL*
 
 1. Bob opens a thread on Alice's `Available` product:
-   `curl -i -X POST http://localhost:3000/api/products/<id>/offers -H "Authorization: Bearer $TOKEN_BOB" -H 'Content-Type: application/json' -d '{"price":80}'`
+   `curl -i -X POST http://localhost:3000/api/products/<id>/offers -H "Authorization: Bearer $TOKEN_BOB" -H 'Content-Type: application/json' -d '{"amountCents":8000}'`
    → `201`. `psql $DB -c "select made_by, price from offers where …;"` → one row, `made_by = buyer`.
 2. Turn violation: Bob immediately posts another offer of `85` → **rejected** (`409`/`400`); SQL still shows one offer.
 3. Alice counters `95` on Bob's thread → `201`; SQL shows two offers, second `made_by = seller`.
@@ -562,7 +567,9 @@ Use a normal window for **Alice (seller)** and an **incognito window** for **Bob
    `psql $DB -c "select buyer_id, count(*) from offers where product_id='<id>' group by 1;"` → two distinct buyers.
    Confirm Carol's action did not change whose turn it is in Bob's thread.
 10. Terminal state: `update products set status='Sold' where id='<id>';` then post any offer → rejected. Restore.
-11. Validation: post `{"price":-5}` and `{"price":"abc"}` → both `400`.
+11. Validation: post `{"amountCents":-5}`, `{"amountCents":"abc"}`, `{"amountCents":0}` and `{"amountCents":10.5}` → all `400`.
+12. Thread naming: a buyer sending `buyerId` → `400`; the seller sending none → `400`.
+13. Concurrency: five simultaneous offers from Bob on a fresh thread → exactly one `201`, four `409`, one row in SQL.
 
 ---
 

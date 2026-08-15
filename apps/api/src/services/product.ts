@@ -10,6 +10,7 @@ import { db, type Executor } from '../db/client';
 import { type PolicyInput, type ProductEntity, ProductPolicy } from '../domain/product-policy';
 import { ConflictError, NotFoundError } from '../lib/errors';
 import { logger } from '../lib/logger';
+import * as offerRepo from '../repositories/offer.repo';
 import * as productRepo from '../repositories/product.repo';
 import { deleteObjects, publicUrl, putObject } from '../storage/client';
 
@@ -23,7 +24,7 @@ const EXTENSIONS: Record<string, string> = {
 
 export async function createProduct(
   seller: SessionUser,
-  { name, description, price }: CreateProductRequest,
+  { name, description, priceCents }: CreateProductRequest,
   images: Express.Multer.File[],
 ): Promise<ProductResponse> {
   // insert images first to storage
@@ -37,7 +38,7 @@ export async function createProduct(
 
   // insert product row
   const created = await productRepo
-    .insert({ sellerId: seller.id, name, description, priceCents: price, imageKeys })
+    .insert({ sellerId: seller.id, name, description, priceCents, imageKeys })
     .catch(async (error: unknown) => {
       // Objects exist and the row does not, so they are unreachable — drop them and report the
       // insert failure, not whatever the cleanup does (T-44).
@@ -51,7 +52,7 @@ export async function createProduct(
     id: created.id,
     name,
     description,
-    priceCents: price,
+    priceCents,
     status: 'Available',
     seller: { id: seller.id, displayName: seller.displayName },
     buyerId: null,
@@ -76,16 +77,12 @@ export async function listProducts(): Promise<ProductListItemResponse[]> {
 }
 
 /** The one place a policy input is assembled, so the read and the write cannot feed it differently. */
-async function buildPolicyInput(
+export async function buildPolicyInput(
   viewer: SessionUser,
   product: ProductEntity,
   exec: Executor = db,
 ): Promise<PolicyInput> {
-  return {
-    viewer,
-    product,
-    viewerHasNegotiation: await productRepo.hasOfferFrom(product.id, viewer.id, exec),
-  };
+  return { viewer, product, offers: await offerRepo.findByProduct(product.id, exec) };
 }
 
 export async function getProduct(viewer: SessionUser, id: number): Promise<ProductDetailResponse> {
