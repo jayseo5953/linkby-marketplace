@@ -1,10 +1,15 @@
-import type { CreateOfferRequest, OfferResponse, SessionUser } from '@linkby/shared';
+import type {
+  CreateOfferRequest,
+  OfferResponse,
+  ProductDetailResponse,
+  SessionUser,
+} from '@linkby/shared';
 import { db } from '../db/client';
 import { type OfferEntity, ProductPolicy, type RespondRefusal } from '../domain/product-policy';
 import { ConflictError, NotFoundError } from '../lib/errors';
 import * as offerRepo from '../repositories/offer.repo';
 import * as productRepo from '../repositories/product.repo';
-import { buildPolicyInput } from './product';
+import { buildPolicyInput, getProduct } from './product';
 
 const REFUSALS: Record<RespondRefusal, { message: string; code: string }> = {
   'not-available': {
@@ -74,4 +79,31 @@ export async function createOffer(
 
     return toResponse(offer);
   });
+}
+
+export async function acceptOffer(
+  viewer: SessionUser,
+  offerId: number,
+): Promise<ProductDetailResponse> {
+  // Offers are immutable, so this read needs no lock — everything that varies with time is the
+  // product's status and which offer is newest, and both are read inside the lock below.
+  const target = await offerRepo.findById(offerId);
+  if (target === undefined) throw new NotFoundError(`No offer with id ${offerId}`);
+
+  await db.transaction(async (tx) => {
+    const product = await productRepo.lockById(target.productId, tx);
+    if (!product) throw new NotFoundError(`No product with id ${target.productId}`);
+
+    const policy = new ProductPolicy(await buildPolicyInput(viewer, product, tx));
+    const refusal = policy.refusalToRespond(target);
+    if (refusal) throw refusalError(refusal);
+
+    await productRepo.markReserved(
+      target.productId,
+      { buyerId: target.buyerId, finalPriceCents: target.amountCents },
+      tx,
+    );
+  });
+
+  return getProduct(viewer, target.productId);
 }

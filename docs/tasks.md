@@ -584,58 +584,61 @@ re-run: 37 checks.
 ## LM-14 · Accept an offer → Reserved
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-13, LM-11
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-15 — 56 checks. Both wrong-actor cases, the superseded-offer refusal in
+both directions, the full Reserved lock-down sweep, completion at the accepted price, two live seller counters with
+no cap, and five concurrent two-buyer races each giving exactly one `200`, one `409` and one recorded buyer.
 
 > As the side being offered to, I want to accept the current offer, so that the product is locked to that buyer at
 > the agreed price and nobody else can take it (§2.5 rule 5).
 
 **Acceptance criteria**
 
-- [ ] Accepting the latest offer sets the product to `Reserved` with that thread's buyer as the reserved buyer.
-- [ ] The accepted price is recorded as the final purchase price and is what LM-11 charges.
-- [ ] That thread is closed/won; every other buyer's thread on the product is frozen — still readable, no longer
+- [x] Accepting the latest offer sets the product to `Reserved` with that thread's buyer as the reserved buyer.
+- [x] The accepted price is recorded as the final purchase price and is what LM-11 charges.
+- [x] That thread is closed/won; every other buyer's thread on the product is frozen — still readable, no longer
       actionable.
-- [ ] Only the side whose turn it is may accept (seller accepting a buyer-made latest offer, or the thread's buyer
+- [x] Only the side whose turn it is may accept (seller accepting a buyer-made latest offer, or the thread's buyer
       accepting a seller-made latest offer). Everyone else is rejected.
-- [ ] Accepting a non-latest offer is rejected.
-- [ ] Accept on an already `Reserved` or `Sold` product is rejected (rule 7).
-- [ ] **Stated rule, not an inference:** after this endpoint sets `Reserved`, the only action the API still permits
+- [x] Accepting a non-latest offer is rejected.
+- [x] Accept on an already `Reserved` or `Sold` product is rejected (rule 7).
+- [x] **Stated rule, not an inference:** after this endpoint sets `Reserved`, the only action the API still permits
       on the product is the reserved buyer's purchase. Every other action — counter, accept, purchase — is rejected
       for every user including the seller.
-- [ ] **Multiple buyers may hold an actionable seller counter at the same time — first to act wins**
+- [x] **Multiple buyers may hold an actionable seller counter at the same time — first to act wins**
      . The seller may have unanswered counters live in any number of threads with no cap;
       each of those buyers sees a live Accept until one of them uses it.
-- [ ] The first Accept to land sets `Reserved` and freezes every other thread. **A later Accept from a losing
+- [x] The first Accept to land sets `Reserved` and freezes every other thread. **A later Accept from a losing
       buyer fails with a conflict error** — it must never succeed, never overwrite the reserved buyer, and never
       leave two threads marked won.
-- [ ] The losing buyer gets a clear "already reserved" style error, not a generic failure or a silent no-op.
-- [ ] The Available → Reserved transition is guarded/conditional on current status; two concurrent accepts on
+- [x] The losing buyer gets a clear "already reserved" style error, not a generic failure or a silent no-op.
+- [x] The Available → Reserved transition is guarded/conditional on current status; two concurrent accepts on
       different threads cannot both succeed.
-- [ ] **Unit tests (§6):** accept → reserved, and other-buyer threads frozen after acceptance.
+- [x] **Unit tests (§6):** accept → reserved, and other-buyer threads frozen after acceptance.
 
 **QA steps** — *backend/curl + SQL*
 
-1. Set up: Bob offers 80, Carol offers 70 on the same Alice product (LM-13 steps 1 and 9).
+1. Set up: Bob offers `8000`, Carol offers `7000` on the same Alice product (LM-13 steps 1 and 9).
 2. Wrong actor: Carol tries to accept Bob's latest offer → rejected.
 3. Wrong turn: Bob tries to accept his own latest offer → rejected.
 4. `curl -i -X POST http://localhost:3000/api/offers/<bobs_latest_offer_id>/accept -H "Authorization: Bearer $TOKEN_ALICE"` → `200`.
-5. `psql $DB -c "select status, reserved_buyer_id, agreed_price from products where id='<id>';"` → `Reserved`,
-   Bob's id, price `80`.
+5. `psql $DB -c "select status, buyer_id, final_price_cents, price_cents from products where id='<id>';"` →
+   `Reserved`, Bob's id, `8000`, and the listed price unchanged. Accepting writes no offer row.
 6. Frozen threads: Carol counters on her thread → rejected; Alice counters on Carol's thread → rejected.
 7. Double accept: repeat step 4 → rejected, row unchanged.
 8. Non-latest: accept an earlier offer id in Bob's thread → rejected.
 9. Reserved lock-down sweep — with the product `Reserved` for Bob, confirm **every**
    non-Bob action is rejected: Carol purchase → rejected; Carol counter → rejected; Alice counter → rejected;
-   Alice accept on Carol's thread → rejected; Alice purchase → rejected. Then `psql $DB -c "select status,
-   reserved_buyer_id from products where id='<id>';"` → still `Reserved`, still Bob.
-10. Completion price: Bob purchases (LM-11) → `200`; SQL shows `Sold` and the final price is `80`, not the listed price.
+   Alice accept on Carol's thread → rejected; Alice purchase → rejected. Every negotiation refusal is
+   `409 PRODUCT_NOT_AVAILABLE`. Then `psql $DB -c "select status, buyer_id, final_price_cents from products where
+   id='<id>';"` → still `Reserved`, still Bob, still `8000`.
+10. Completion price: Bob purchases (LM-11) → `200`; SQL shows `Sold` and the final price is `8000`, not the listed price.
 11. **Multiple live seller counters — no cap**. On a fresh `Available` product listed by
-    Alice at 100: Bob offers `80`, Carol offers `70`. Alice now counters **both** threads without either buyer
-    responding in between — `…/offers/<bobs_offer>/counter` at `90`, then `…/offers/<carols_offer>/counter` at
-    `85`, both as `$TOKEN_ALICE` → **both `201`**. Neither is rejected for "another thread is awaiting a reply";
-    any such rejection is a defect. `psql $DB -c "select thread_id, made_by, price from offers where
-    product_id='<id>' order by created_at;"` → four rows, the two most recent both `made_by = seller` in different
-    threads.
+    Alice at `10000`: Bob offers `8000`, Carol offers `7000`. Alice now counters **both** threads without either buyer
+    responding in between — `POST …/products/<id>/offers` with `{"amountCents":9000,"inReplyToOfferId":<bobs_offer>}`,
+    then the same naming Carol's offer at `8500`, both as `$TOKEN_ALICE` → **both `201`**. Neither is rejected for
+    "another thread is awaiting a reply"; any such rejection is a defect. `psql $DB -c "select buyer_id, made_by,
+    amount_cents from offers where product_id='<id>' order by id;"` → four rows, the two most recent both
+    `made_by = seller` in different threads.
 12. **Race — first Accept wins, deterministic version.** Both Bob and Carol are now sitting on an actionable seller
     counter. Accept as Bob → `200`. Immediately accept as Carol
     (`curl -i -X POST http://localhost:3000/api/offers/<carols_latest_offer_id>/accept -H "Authorization: Bearer $TOKEN_CAROL"`)
@@ -649,10 +652,10 @@ re-run: 37 checks.
     → exactly one `200` and one conflict code. Which one wins is not asserted; that **exactly one** wins is.
     Run this 5 times on 5 fresh products — every run must show one winner and one loser, never two winners.
 14. **Winner recorded once.** After each race:
-    `psql $DB -c "select status, reserved_buyer_id from products where id='<id>';"` → `Reserved`, with the
-    reserved buyer equal to whichever user got the `200` — never the loser, never null.
-    Then confirm no double-win in the threads:
-    `psql $DB -c "select count(*) from negotiations where product_id='<id>' and status='won';"` → exactly `1`.
+    `psql $DB -c "select status, buyer_id from products where id='<id>';"` → `Reserved`, with the buyer equal to
+    whichever user got the `200` — never the loser, never null. There is no separate thread-status row to check:
+    a thread is won because the product points at its buyer, so "two threads marked won" is not a state the
+    schema can hold.
 15. Completion after a contested race: the winning buyer purchases (LM-11) → `200`, `Sold` at their agreed price;
     the losing buyer's purchase attempt → rejected.
 

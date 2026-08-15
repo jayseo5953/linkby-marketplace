@@ -233,6 +233,44 @@ describe('refusalToRespond — why, not just whether', () => {
   });
 });
 
+// Acceptance itself is a write, but everything it is supposed to make true afterwards is readable
+// here: the product is Reserved, so no thread on it is actionable and only the winner may buy.
+describe('after an offer is accepted', () => {
+  const offers = [
+    ...thread(bob.id, 'buyer', 'seller'), // Bob accepts this counter
+    ...thread(carol.id, 'buyer', 'seller'), // Carol was sitting on one too
+  ];
+  const bobsNewest = offers[1]!;
+  const carolsNewest = offers[3]!;
+  const reserved = { status: 'Reserved' as const, buyerId: bob.id, finalPriceCents: 20000 };
+
+  it("freezes the loser's thread even though it was her turn", () => {
+    expect(policyFor(carol, {}, offers).refusalToRespond(carolsNewest)).toBeNull();
+    expect(policyFor(carol, reserved, offers).refusalToRespond(carolsNewest)).toBe('not-available');
+  });
+
+  it('freezes the winning thread too — the negotiation is over, not paused', () => {
+    expect(policyFor(bob, reserved, offers).refusalToRespond(bobsNewest)).toBe('not-available');
+    expect(policyFor(alice, reserved, offers).refusalToRespond(carolsNewest)).toBe('not-available');
+  });
+
+  it('refuses a second acceptance, which is what the losing buyer sends', () => {
+    expect(policyFor(carol, reserved, offers).canRespondTo(carolsNewest)).toBe(false);
+  });
+
+  it('leaves the reserved buyer the purchase, at the accepted price', () => {
+    const policy = policyFor(bob, reserved, offers);
+    expect(policy.canPurchase).toBe(true);
+    expect(policy.purchasePriceCents).toBe(20000);
+  });
+
+  it('leaves nobody else anything to do', () => {
+    expect(policyFor(carol, reserved, offers).canPurchase).toBe(false);
+    expect(policyFor(alice, reserved, offers).canPurchase).toBe(false);
+    expect(policyFor(carol, reserved, offers).canStartNegotiation).toBe(false);
+  });
+});
+
 describe('offerById', () => {
   it('finds an offer on this product', () => {
     const offers = thread(bob.id, 'buyer', 'seller');

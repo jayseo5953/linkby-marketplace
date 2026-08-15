@@ -60,6 +60,14 @@ export async function lockById(id: number, tx: Tx): Promise<ProductEntity | unde
   return rows[0];
 }
 
+export async function markReserved(
+  id: number,
+  values: { buyerId: number; finalPriceCents: number },
+  exec: Executor = db,
+): Promise<void> {
+  await exec.update(products).set({ status: 'Reserved', ...values }).where(eq(products.id, id));
+}
+
 export async function markSold(
   id: number,
   values: { buyerId: number; finalPriceCents: number },

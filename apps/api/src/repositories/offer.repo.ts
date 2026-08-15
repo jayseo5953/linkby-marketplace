@@ -11,6 +11,12 @@ export async function findByProduct(
   return exec.select().from(offers).where(eq(offers.productId, productId)).orderBy(asc(offers.id));
 }
 
+export async function findById(id: number, exec: Executor = db): Promise<OfferEntity | undefined> {
+  const rows = await exec.select().from(offers).where(eq(offers.id, id)).limit(1);
+
+  return rows[0];
+}
+
 export async function insert(
   values: Pick<OfferEntity, 'productId' | 'buyerId' | 'madeBy' | 'amountCents'>,
   exec: Executor = db,
