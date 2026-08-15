@@ -40,6 +40,23 @@ export async function putObject(
   );
 }
 
+/** Keys are stored, not URLs — the host is deployment config and would go stale in the row (T-46). */
+export function publicUrl(key: string): string {
+  return `${config.S3_PUBLIC_URL}/${config.S3_BUCKET}/${key}`;
+}
+
+/** Best-effort cleanup after a failed create, so a caller's original error is the one that surfaces. */
+export async function deleteObjects(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+
+  await s3.send(
+    new DeleteObjectsCommand({
+      Bucket: config.S3_BUCKET,
+      Delete: { Objects: keys.map((Key) => ({ Key })) },
+    }),
+  );
+}
+
 /** Paginated because a listing returns at most 1000 keys, and a partial delete leaks silently. */
 export async function deleteByPrefix(prefix: string): Promise<number> {
   let continuationToken: string | undefined;

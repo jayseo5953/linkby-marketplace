@@ -19,13 +19,8 @@ function must<T>(value: T | undefined, message: string): T {
   return value;
 }
 
-async function uploadImage(
-  productId: number,
-  name: string,
-  index: number,
-  total: number,
-): Promise<string> {
-  const key = `products/${productId}/${randomUUID()}.svg`;
+async function uploadImage(name: string, index: number, total: number): Promise<string> {
+  const key = `products/${randomUUID()}.svg`;
   await putObject(key, svgFor(name, index, total), 'image/svg+xml');
   return key;
 }
@@ -100,7 +95,7 @@ async function main(): Promise<void> {
       id,
       keys: await Promise.all(
         Array.from({ length: product.imageCount }, (_, index) =>
-          uploadImage(id, product.name, index, product.imageCount),
+          uploadImage(product.name, index, product.imageCount),
         ),
       ),
     })),

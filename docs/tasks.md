@@ -15,6 +15,10 @@ ticket is implemented, its design is discussed and agreed, and whatever that set
 reaches `Done` only once its QA steps have actually been run, and the `QA:` note records when, plus
 anything that was not fully verified.
 
+**Build order.** Tickets are listed by ID, but P0 is built backend-first: **LM-06 → LM-07 → LM-11 →
+LM-13 → LM-14 → LM-15**, then the frontend run **LM-05 → LM-08 → LM-09 → LM-10 → LM-12 → LM-16**.
+Every ticket's stated dependencies are satisfied in that sequence.
+
 **Priority bands**
 
 | Band | Meaning |
@@ -250,31 +254,32 @@ tampered tokens, a token naming a deleted user, timing parity between the two fa
 ## LM-06 · Create a product with images
 
 **Priority:** P0 · **Estimate:** 2.5h · **Depends on:** LM-04
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-14 — all 9 steps, plus zero-price, disallowed-MIME and a
+forced insert failure confirming uploaded objects are cleaned up.
 
 > As a seller, I want to list a product with a name, price, description and up to five images, so that other users
 > can see and buy it (§2.2, §3.3).
 
 **Acceptance criteria**
 
-- [ ] An authenticated user can create a product; it is stored with status `Available` and the caller as seller (§3.3).
-- [ ] Up to 5 images are accepted per product; a 6th is rejected with a clear validation error.
-- [ ] An image over 5MB is rejected with a clear validation error; nothing partial is persisted.
-- [ ] Images are stored in object storage, not in the database; the database holds references plus their display order.
-- [ ] Image order is stable, so "first uploaded image" is deterministic for the card thumbnail in LM-08.
-- [ ] Stored images are retrievable by the browser via a URL that works for any logged-in viewer.
-- [ ] Missing name, **missing description**, missing price, non-numeric price and negative price are all rejected
+- [x] An authenticated user can create a product; it is stored with status `Available` and the caller as seller (§3.3).
+- [x] Up to 5 images are accepted per product; a 6th is rejected with a clear validation error.
+- [x] An image over 5MB is rejected with a clear validation error; nothing partial is persisted.
+- [x] Images are stored in object storage, not in the database; the database holds references plus their display order.
+- [x] Image order is stable, so "first uploaded image" is deterministic for the card thumbnail in LM-08.
+- [x] Stored images are retrievable by the browser via a URL that works for any logged-in viewer.
+- [x] Missing name, **missing description**, missing price, non-numeric price and negative price are all rejected
       with `400` *(description required)*.
-- [ ] A product with zero images is valid and created successfully — images are optional
+- [x] A product with zero images is valid and created successfully — images are optional
       *(§3.2 already shows the card image only "if any")*.
-- [ ] Unauthenticated create attempts are rejected with `401`.
+- [x] Unauthenticated create attempts are rejected with `401`.
 
 **QA steps** — *backend/curl + storage console*
 
 1. `curl -i -X POST http://localhost:3000/api/products -H "Authorization: Bearer $TOKEN_ALICE" -F 'name=Test Chair' -F 'price=120.00' -F 'description=A chair' -F 'images=@a.jpg' -F 'images=@b.jpg'`
    → `201`, body shows status `Available` and Alice as seller.
 2. `psql $DB -c "select name, price, status, seller_id from products where name='Test Chair';"` → one row, `Available`.
-3. `psql $DB -c "select * from product_images where product_id='<id>' order by position;"` → 2 rows, positions `0,1`.
+3. `psql $DB -c "select image_keys from products where name='Test Chair';"` → 2 keys, in upload order.
 4. Open the MinIO console → both objects present in the app bucket.
 5. `curl -i <image_url_from_step_1>` → `200` with an image content type.
 6. Repeat step 1 with six `-F 'images=@…'` flags → `400`, and `select count(*) from products where name=…` → 0 (nothing partially created).

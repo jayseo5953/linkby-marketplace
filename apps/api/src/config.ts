@@ -7,6 +7,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string().min(32),
   S3_ENDPOINT: z.string(),
+  // Where a browser reaches storage. S3_ENDPOINT is a Docker hostname the browser cannot resolve.
+  S3_PUBLIC_URL: z.string(),
   S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string(),
   S3_ACCESS_KEY: z.string(),
