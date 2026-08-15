@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { CreateProductRequest, ProductResponse, SessionUser } from '@linkby/shared';
+import type {
+  CreateProductRequest,
+  ProductListItemResponse,
+  ProductResponse,
+  SessionUser,
+} from '@linkby/shared';
+import { NotFoundError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import * as productRepo from '../repositories/product.repo';
 import { deleteObjects, publicUrl, putObject } from '../storage/client';
@@ -49,7 +55,34 @@ export async function createProduct(
     priceCents: price,
     status: 'Available',
     seller: { id: seller.id, displayName: seller.displayName },
+    buyerId: null,
     imageUrls: imageKeys.map(publicUrl),
     createdAt: created.createdAt.toISOString(),
   };
+}
+
+export async function listProducts(): Promise<ProductListItemResponse[]> {
+  const rows = await productRepo.findAll();
+
+  return rows.map(({ id, name, priceCents, status, seller, imageKeys, createdAt }) => ({
+    id,
+    name,
+    priceCents,
+    status,
+    seller,
+    imageUrl: imageKeys.map(publicUrl).at(0) ?? null,
+    createdAt: createdAt.toISOString(),
+  }));
+}
+
+/**
+ * Takes the raw path segment: an id that is not a number is not a product either, so both it and a
+ * number matching no row leave by the same 404 rather than splitting into a 400 (T-51).
+ */
+export async function getProduct(id: string): Promise<ProductResponse> {
+  const row = /^\d+$/.test(id) ? await productRepo.findById(Number(id)) : undefined;
+  if (!row) throw new NotFoundError(`No product with id ${id}`);
+
+  const { imageKeys, createdAt, ...rest } = row;
+  return { ...rest, imageUrls: imageKeys.map(publicUrl), createdAt: createdAt.toISOString() };
 }

@@ -20,3 +20,12 @@ productRouter.post(
     res.status(201).json(product);
   },
 );
+
+productRouter.get('/api/products', authenticate, async (_req, res) => {
+  res.status(200).json(await productService.listProducts());
+});
+
+// Typed params, because Express 5 widens `req.params` to allow the repeated and wildcard forms.
+productRouter.get<{ id: string }>('/api/products/:id', authenticate, async (req, res) => {
+  res.status(200).json(await productService.getProduct(req.params.id));
+});

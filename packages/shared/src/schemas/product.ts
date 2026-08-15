@@ -28,17 +28,33 @@ export const createProductRequestSchema = z.object({
     .refine((cents) => cents > 0, 'Price must be greater than zero'),
 });
 
+// Narrower than `sessionUserSchema` on purpose: a seller's email is not every viewer's business.
+const sellerSchema = z.object({ id: z.number().int().positive(), displayName: z.string() });
+
 export const productResponseSchema = z.object({
   id: z.number().int().positive(),
   name: z.string(),
   description: z.string(),
   priceCents: z.number().int().positive(),
   status: z.enum(PRODUCT_STATUSES),
-  // Narrower than `sessionUserSchema` on purpose: a seller's email is not every viewer's business.
-  seller: z.object({ id: z.number().int().positive(), displayName: z.string() }),
+  seller: sellerSchema,
+  // The raw column, not `isMine` — the viewer knows its own id and can compare (T-50).
+  buyerId: z.number().int().positive().nullable(),
   imageUrls: z.array(z.string()),
+  createdAt: z.string(),
+});
+
+// The card in §3.2, which shows one image and never the description.
+export const productListItemResponseSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  priceCents: z.number().int().positive(),
+  status: z.enum(PRODUCT_STATUSES),
+  seller: sellerSchema,
+  imageUrl: z.string().nullable(),
   createdAt: z.string(),
 });
 
 export type CreateProductRequest = z.infer<typeof createProductRequestSchema>;
 export type ProductResponse = z.infer<typeof productResponseSchema>;
+export type ProductListItemResponse = z.infer<typeof productListItemResponseSchema>;

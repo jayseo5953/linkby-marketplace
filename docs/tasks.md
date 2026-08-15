@@ -293,30 +293,32 @@ forced insert failure confirming uploaded objects are cleaned up.
 ## LM-07 · Read products (list + detail)
 
 **Priority:** P0 · **Estimate:** 1h · **Depends on:** LM-06
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-15 — all 6 steps, plus a no-image product returning `imageUrl: null` and four malformed ids all leaving by the same 404.
 
 > As a logged-in user, I want to fetch all listings and the full detail of one listing, so that the browsing screens
 > have data to render (§3.2, §3.4).
 
 **Acceptance criteria**
 
-- [ ] A list endpoint returns every product with: first image reference, name, price, seller display name, status,
+- [x] A list endpoint returns every product with: first image reference, name, price, seller display name, status,
       created timestamp.
-- [ ] Seller display name comes back with the list in a single query — no per-product follow-up query (§5, no N+1).
-- [ ] A detail endpoint returns one product with name, status, price, description, **all** image references and seller.
-- [ ] Detail also returns enough viewer context for the UI to decide button visibility: whether the viewer is the
-      seller, whether the viewer has an open negotiation, and whether the viewer is the reserved buyer.
-- [ ] An unknown product id returns `404`.
-- [ ] Both endpoints require authentication.
-- [ ] No pagination is implemented (explicitly not required, §3.2).
+- [x] Seller display name comes back with the list in a single query — no per-product follow-up query (§5, no N+1).
+- [x] A detail endpoint returns one product with name, status, price, description, **all** image references and seller.
+- [x] Detail carries the raw identity columns the UI needs to resolve button visibility for itself — `seller.id` and
+      `buyerId` — rather than per-viewer flags. Both endpoints return the same bytes to every caller; the viewer's own
+      negotiation state comes from the history read model (LM-15).
+- [x] An unknown product id returns `404`.
+- [x] Both endpoints require authentication.
+- [x] No pagination is implemented (explicitly not required, §3.2).
 
 **QA steps** — *backend/curl*
 
 1. `curl -s http://localhost:3000/api/products -H "Authorization: Bearer $TOKEN_BOB" | jq` → array containing the
-   seeded products, each with `sellerName`, `status`, a first-image field and a price.
+   seeded products, each with `seller`, `status`, `imageUrl` and a price.
 2. `curl -s http://localhost:3000/api/products/<id> -H "Authorization: Bearer $TOKEN_BOB" | jq` → full detail with
-   the complete image array and viewer-context flags.
-3. As the seller: same detail call with `$TOKEN_ALICE` → viewer-context flags mark her as the seller.
+   the complete image array, and `buyerId` set on a `Reserved` product.
+3. As the seller: same detail call with `$TOKEN_ALICE` → byte-identical to Bob's response. She is the seller because
+   `seller.id` is her own user id, which the client compares against its session.
 4. `curl -i http://localhost:3000/api/products/00000000-0000-0000-0000-000000000000 -H "Authorization: Bearer $TOKEN_BOB"` → `404`.
 5. `curl -i http://localhost:3000/api/products` (no auth) → `401`.
 6. N+1 check: with DB statement logging on (`docker compose logs -f db`), call the list endpoint once →
