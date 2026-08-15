@@ -4,6 +4,8 @@ import type { offers, products } from '../db/schema';
 export type ProductEntity = typeof products.$inferSelect;
 export type OfferEntity = typeof offers.$inferSelect;
 
+export type RespondRefusal = 'not-available' | 'superseded' | 'not-your-turn';
+
 export type PolicyInput = {
   viewer: SessionUser;
   product: ProductEntity;
@@ -28,6 +30,11 @@ export class ProductPolicy {
   /** Undefined when that buyer has no thread, which is how an opening offer is recognised. */
   newestInThread(buyerId: number): OfferEntity | undefined {
     return this.newestByBuyer.get(buyerId);
+  }
+
+  /** Resolves within this product's offers, so an id from another product is simply absent. */
+  offerById(id: number): OfferEntity | undefined {
+    return this.input.offers.find((offer) => offer.id === id);
   }
 
   private get isAvailable(): boolean {
@@ -72,12 +79,20 @@ export class ProductPolicy {
     return this.isBuyer && this.isAvailable && !this.hasOpenThread;
   }
 
-  canCounter(offer: OfferEntity): boolean {
-    return (
-      this.isAvailable &&
-      this.isNewestInThread(offer) &&
-      (this.sellerMayAnswer(offer) || this.buyerMayAnswer(offer))
-    );
+  /** Accepting and countering are permitted under identical conditions, so they share a predicate. */
+  canRespondTo(offer: OfferEntity): boolean {
+    return this.refusalToRespond(offer) === null;
+  }
+
+  // Each row is a condition that must hold, paired with what its failure means to the caller.
+  refusalToRespond(offer: OfferEntity): RespondRefusal | null {
+    const required = [
+      [this.isAvailable, 'not-available'],
+      [this.isNewestInThread(offer), 'superseded'],
+      [this.sellerMayAnswer(offer) || this.buyerMayAnswer(offer), 'not-your-turn'],
+    ] as const;
+
+    return required.find(([holds]) => !holds)?.[1] ?? null;
   }
 
   // Getters do not survive `JSON.stringify`, so the wire shape is stated rather than inherited.

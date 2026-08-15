@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { OFFER_SIDES } from '../domain/product';
 
-// A buyer has one thread and never names it; a seller always answers somebody's and always does.
-// A buyer sending `buyerId` is refused, since accepting it would write into another thread (T-58).
+// Absent opens a thread, present counters that offer. The shape says which act this is rather than
+// who the caller is, and the thread follows from the offer instead of being asserted (T-64).
 export const createOfferRequestSchema = z.object({
   amountCents: z.number().int().positive(),
-  buyerId: z.number().int().positive().optional(),
+  inReplyToOfferId: z.number().int().positive().optional(),
 });
 
 export const offerResponseSchema = z.object({

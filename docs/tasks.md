@@ -527,6 +527,9 @@ Use a normal window for **Alice (seller)** and an **incognito window** for **Bob
 **Status:** Done · **QA:** passed 2026-08-15 — 43 checks. Both turn violations, seller self-offer, thread naming in
 both directions, thread isolation with two unanswered seller counters live at once, terminal status, validation, and
 five concurrent offers on one thread giving one `201` and four `409`.
+**Revised 2026-08-15:** a counter now names the offer it answers (`inReplyToOfferId`) instead of the seller naming a
+buyer, so a stale reference is refused as `OFFER_SUPERSEDED` rather than silently applied to the newest offer. QA
+re-run: 37 checks.
 
 > As a buyer or seller, I want to exchange counter offers in an orderly back-and-forth, so that we can converge on
 > a price before the sale completes (§2.5).
@@ -556,9 +559,10 @@ five concurrent offers on one thread giving one `201` and four `409`.
    `curl -i -X POST http://localhost:3000/api/products/<id>/offers -H "Authorization: Bearer $TOKEN_BOB" -H 'Content-Type: application/json' -d '{"amountCents":8000}'`
    → `201`. `psql $DB -c "select made_by, price from offers where …;"` → one row, `made_by = buyer`.
 2. Turn violation: Bob immediately posts another offer of `85` → **rejected** (`409`/`400`); SQL still shows one offer.
-3. Alice counters `95` on Bob's thread → `201`; SQL shows two offers, second `made_by = seller`.
+3. Alice counters `95`, naming the offer she is answering — `-d '{"amountCents":9500,"inReplyToOfferId":<bobs_offer_id>}'`
+   → `201`; SQL shows two offers, second `made_by = seller`.
 4. Turn violation the other way: Alice counters again → rejected; still two offers.
-5. Bob counters `90` → `201`, three offers.
+5. Bob counters `90`, naming Alice's counter → `201`, three offers.
 6. Above-list offer: Bob's next legal turn posts a price above the listed price → accepted.
 7. Seller self-offer: Alice tries to open a thread on her own product → rejected.
 8. Duplicate thread: Bob posts again while it is Alice's turn → rejected. A *second* thread is not a state that
@@ -568,7 +572,11 @@ five concurrent offers on one thread giving one `201` and four `409`.
    Confirm Carol's action did not change whose turn it is in Bob's thread.
 10. Terminal state: `update products set status='Sold' where id='<id>';` then post any offer → rejected. Restore.
 11. Validation: post `{"amountCents":-5}`, `{"amountCents":"abc"}`, `{"amountCents":0}` and `{"amountCents":10.5}` → all `400`.
-12. Thread naming: a buyer sending `buyerId` → `400`; the seller sending none → `400`.
+12. Naming the offer answered: a counter with no `inReplyToOfferId` reads as opening a thread, so the seller gets
+    `409 NEGOTIATION_NOT_ALLOWED` and a buyer who already has a thread gets the same. An `inReplyToOfferId` from
+    another product → `404`. Countering an offer that is no longer the newest in its thread → `409 OFFER_SUPERSEDED`,
+    **including when it is genuinely the caller's turn** — run `buyer → seller → buyer → seller`, then have the buyer
+    answer the *first* seller counter rather than the second.
 13. Concurrency: five simultaneous offers from Bob on a fresh thread → exactly one `201`, four `409`, one row in SQL.
 
 ---

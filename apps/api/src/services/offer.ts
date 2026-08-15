@@ -1,51 +1,74 @@
 import type { CreateOfferRequest, OfferResponse, SessionUser } from '@linkby/shared';
 import { db } from '../db/client';
-import { type OfferEntity, ProductPolicy } from '../domain/product-policy';
-import { BadRequestError, ConflictError, NotFoundError } from '../lib/errors';
+import { type OfferEntity, ProductPolicy, type RespondRefusal } from '../domain/product-policy';
+import { ConflictError, NotFoundError } from '../lib/errors';
 import * as offerRepo from '../repositories/offer.repo';
 import * as productRepo from '../repositories/product.repo';
 import { buildPolicyInput } from './product';
+
+const REFUSALS: Record<RespondRefusal, { message: string; code: string }> = {
+  'not-available': {
+    message: 'This product is no longer available to negotiate on',
+    code: 'PRODUCT_NOT_AVAILABLE',
+  },
+  superseded: {
+    message: 'A newer offer has been made in this negotiation',
+    code: 'OFFER_SUPERSEDED',
+  },
+  'not-your-turn': {
+    message: 'It is not your turn to respond in this negotiation',
+    code: 'NOT_YOUR_TURN',
+  },
+};
 
 function toResponse(offer: OfferEntity): OfferResponse {
   return { ...offer, createdAt: offer.createdAt.toISOString() };
 }
 
+function refusalError(refusal: RespondRefusal): ConflictError {
+  const { message, code } = REFUSALS[refusal];
+  return new ConflictError(message, code);
+}
+
+/** The thread the offer belongs in, or the refusal that stops it being written at all. */
+function resolveThread(
+  viewer: SessionUser,
+  policy: ProductPolicy,
+  inReplyToOfferId: number | undefined,
+): number {
+  if (inReplyToOfferId === undefined) {
+    if (policy.canStartNegotiation) return viewer.id;
+    throw new ConflictError(
+      'You cannot open a negotiation on this product',
+      'NEGOTIATION_NOT_ALLOWED',
+    );
+  }
+
+  const answered = policy.offerById(inReplyToOfferId);
+  if (answered === undefined) {
+    throw new NotFoundError(`No offer with id ${inReplyToOfferId} on this product`);
+  }
+
+  const refusal = policy.refusalToRespond(answered);
+  if (refusal) throw refusalError(refusal);
+
+  return answered.buyerId;
+}
+
 export async function createOffer(
   viewer: SessionUser,
   productId: number,
-  { amountCents, buyerId }: CreateOfferRequest,
+  { amountCents, inReplyToOfferId }: CreateOfferRequest,
 ): Promise<OfferResponse> {
   return db.transaction(async (tx) => {
     const product = await productRepo.lockById(productId, tx);
     if (!product) throw new NotFoundError(`No product with id ${productId}`);
 
     const policy = new ProductPolicy(await buildPolicyInput(viewer, product, tx));
-
-    // Which thread a request may address is a matter of its shape, not of the product's state, so
-    // it leaves as a 400 rather than joining the policy's refusals.
-    const namingMatchesRole = policy.isSeller === (buyerId !== undefined);
-    if (!namingMatchesRole) {
-      throw new BadRequestError(
-        policy.isSeller
-          ? 'A counter must name the buyer whose thread it answers'
-          : 'An offer on your own thread must not name a buyer',
-        'THREAD_NAMING_INVALID',
-      );
-    }
-
-    const threadBuyerId = buyerId ?? viewer.id;
-    const newest = policy.newestInThread(threadBuyerId);
-    const allowed = newest ? policy.canCounter(newest) : policy.canStartNegotiation;
-
-    if (!allowed) {
-      throw new ConflictError(
-        'You cannot make an offer on this product right now',
-        'OFFER_NOT_ALLOWED',
-      );
-    }
+    const buyerId = resolveThread(viewer, policy, inReplyToOfferId);
 
     const offer = await offerRepo.insert(
-      { productId, buyerId: threadBuyerId, madeBy: policy.isSeller ? 'seller' : 'buyer', amountCents },
+      { productId, buyerId, madeBy: policy.isSeller ? 'seller' : 'buyer', amountCents },
       tx,
     );
 

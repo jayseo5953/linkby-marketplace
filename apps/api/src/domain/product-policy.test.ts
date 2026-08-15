@@ -137,44 +137,44 @@ describe('canStartNegotiation', () => {
   });
 });
 
-describe('canCounter — turns alternate within a thread', () => {
+describe('canRespondTo — turns alternate within a thread', () => {
   it('lets the seller answer a buyer, and not the buyer who just spoke', () => {
     const offers = thread(bob.id, 'buyer');
     const opening = offers[0]!;
 
-    expect(policyFor(alice, {}, offers).canCounter(opening)).toBe(true);
-    expect(policyFor(bob, {}, offers).canCounter(opening)).toBe(false);
+    expect(policyFor(alice, {}, offers).canRespondTo(opening)).toBe(true);
+    expect(policyFor(bob, {}, offers).canRespondTo(opening)).toBe(false);
   });
 
   it("lets the buyer answer the seller's counter, and not the seller again", () => {
     const offers = thread(bob.id, 'buyer', 'seller');
     const counter = offers[1]!;
 
-    expect(policyFor(bob, {}, offers).canCounter(counter)).toBe(true);
-    expect(policyFor(alice, {}, offers).canCounter(counter)).toBe(false);
+    expect(policyFor(bob, {}, offers).canRespondTo(counter)).toBe(true);
+    expect(policyFor(alice, {}, offers).canRespondTo(counter)).toBe(false);
   });
 
   it('lets nobody act once the product has left Available', () => {
     const offers = thread(bob.id, 'buyer');
     const reserved = { status: 'Reserved' as const, buyerId: bob.id };
 
-    expect(policyFor(alice, reserved, offers).canCounter(offers[0]!)).toBe(false);
-    expect(policyFor(bob, reserved, offers).canCounter(offers[0]!)).toBe(false);
+    expect(policyFor(alice, reserved, offers).canRespondTo(offers[0]!)).toBe(false);
+    expect(policyFor(bob, reserved, offers).canRespondTo(offers[0]!)).toBe(false);
   });
 });
 
-describe('canCounter — only the newest offer in a thread is actionable', () => {
+describe('canRespondTo — only the newest offer in a thread is actionable', () => {
   it('refuses the seller an earlier buyer offer they could once have answered', () => {
     const offers = thread(bob.id, 'buyer', 'seller', 'buyer');
     const policy = policyFor(alice, {}, offers);
 
     // Both were made by the buyer, so read on their own they are indistinguishable to the seller.
-    expect(policy.canCounter(offers[0]!)).toBe(false);
-    expect(policy.canCounter(offers[2]!)).toBe(true);
+    expect(policy.canRespondTo(offers[0]!)).toBe(false);
+    expect(policy.canRespondTo(offers[2]!)).toBe(true);
   });
 });
 
-describe('canCounter — threads are isolated from each other', () => {
+describe('canRespondTo — threads are isolated from each other', () => {
   const offers = [
     ...thread(bob.id, 'buyer', 'seller'), // Bob's turn
     ...thread(carol.id, 'buyer'), // Alice's turn
@@ -186,16 +186,62 @@ describe('canCounter — threads are isolated from each other', () => {
     const policy = policyFor(alice, {}, offers);
 
     // Alice already countered Bob and it is his turn, which must not stop her answering Carol.
-    expect(policy.canCounter(bobsNewest)).toBe(false);
-    expect(policy.canCounter(carolsNewest)).toBe(true);
+    expect(policy.canRespondTo(bobsNewest)).toBe(false);
+    expect(policy.canRespondTo(carolsNewest)).toBe(true);
   });
 
   it("refuses a buyer any offer in another buyer's thread", () => {
-    expect(policyFor(carol, {}, offers).canCounter(bobsNewest)).toBe(false);
+    expect(policyFor(carol, {}, offers).canRespondTo(bobsNewest)).toBe(false);
   });
 
   it('leaves whose turn it is in one thread untouched when another buyer acts', () => {
-    expect(policyFor(bob, {}, offers).canCounter(bobsNewest)).toBe(true);
+    expect(policyFor(bob, {}, offers).canRespondTo(bobsNewest)).toBe(true);
+  });
+});
+
+describe('refusalToRespond — why, not just whether', () => {
+  it('is null when the response is allowed', () => {
+    const offers = thread(bob.id, 'buyer');
+    expect(policyFor(alice, {}, offers).refusalToRespond(offers[0]!)).toBeNull();
+  });
+
+  it('reports the product first, since it outranks whose turn it is', () => {
+    const offers = thread(bob.id, 'buyer');
+    const reserved = { status: 'Reserved' as const, buyerId: bob.id };
+    expect(policyFor(alice, reserved, offers).refusalToRespond(offers[0]!)).toBe('not-available');
+  });
+
+  // The case the offer id exists for: a tab left open across a full round trip still shows the
+  // seller's earlier counter with a live Accept, and it is genuinely the buyer's turn again.
+  it('reports a stale reference as superseded, not as a turn violation', () => {
+    const offers = thread(bob.id, 'buyer', 'seller', 'buyer', 'seller');
+    const policy = policyFor(bob, {}, offers);
+
+    // It is Bob's turn either way, so the turn check alone would have let the stale one through.
+    expect(policy.refusalToRespond(offers[1]!)).toBe('superseded');
+    expect(policy.refusalToRespond(offers[3]!)).toBeNull();
+  });
+
+  it('reports the side that cannot answer as out of turn', () => {
+    const offers = thread(bob.id, 'buyer');
+    expect(policyFor(bob, {}, offers).refusalToRespond(offers[0]!)).toBe('not-your-turn');
+  });
+
+  it("reports another buyer's thread as out of turn", () => {
+    const offers = thread(bob.id, 'buyer', 'seller');
+    expect(policyFor(carol, {}, offers).refusalToRespond(offers[1]!)).toBe('not-your-turn');
+  });
+});
+
+describe('offerById', () => {
+  it('finds an offer on this product', () => {
+    const offers = thread(bob.id, 'buyer', 'seller');
+    expect(policyFor(alice, {}, offers).offerById(offers[1]!.id)).toBe(offers[1]);
+  });
+
+  it('is undefined for an id from another product, which is how a 404 is recognised', () => {
+    const offers = thread(bob.id, 'buyer');
+    expect(policyFor(alice, {}, offers).offerById(offers[0]!.id + 1000)).toBeUndefined();
   });
 });
 
