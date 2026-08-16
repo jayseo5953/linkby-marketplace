@@ -38,13 +38,7 @@ export async function createProduct(
   images: Express.Multer.File[],
 ): Promise<ProductResponse> {
   // insert images first to storage
-  const imageKeys = await Promise.all(
-    images.map(async (image) => {
-      const key = keyFor(image.mimetype);
-      await putObject(key, image.buffer, image.mimetype);
-      return key;
-    }),
-  );
+  const imageKeys = await storeImages(images);
 
   // insert product row
   const created = await productRepo
@@ -52,9 +46,7 @@ export async function createProduct(
     .catch(async (error: unknown) => {
       // Objects exist and the row does not, so they are unreachable — drop them and report the
       // insert failure, not whatever the cleanup does (T-44).
-      await deleteObjects(imageKeys).catch((cleanupError: unknown) =>
-        logger.error({ err: cleanupError, imageKeys }, 'orphaned objects left in storage'),
-      );
+      await discard(imageKeys);
       throw error;
     });
 
@@ -124,6 +116,36 @@ export async function purchaseProduct(
   });
 
   return getProduct(viewer, id);
+}
+
+// Settled rather than raced: whatever landed before a failure still has to be cleaned up (T-75).
+async function storeImages(images: Express.Multer.File[]): Promise<string[]> {
+  const results = await Promise.allSettled(
+    images.map(async (image) => {
+      const key = keyFor(image.mimetype);
+      await putObject(key, image.buffer, image.mimetype);
+      return key;
+    }),
+  );
+
+  const uploaded = results.flatMap((result) =>
+    result.status === 'fulfilled' ? [result.value] : [],
+  );
+  const failed = results.find((result) => result.status === 'rejected');
+
+  if (failed) {
+    await discard(uploaded);
+    throw failed.reason;
+  }
+
+  return uploaded;
+}
+
+// Best-effort, so the caller's original error is the one that surfaces.
+async function discard(keys: string[]): Promise<void> {
+  await deleteObjects(keys).catch((error: unknown) =>
+    logger.error({ err: error, keys }, 'orphaned objects left in storage'),
+  );
 }
 
 // Flat keys: nothing needs the product id, and not needing it is what lets the upload run first (T-45).
