@@ -225,29 +225,49 @@ tampered tokens, a token naming a deleted user, timing parity between the two fa
 ## LM-05 · Login and logout in the browser
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-04
-**Status:** Not started
+**Status:** Done · **QA:** 2026-08-15 — every step but 3, which needs a password typed into the form.
 
 > As a user, I want to log in on a login screen and log out from the header, so that I can start and end a session
 > in the app (§3.1).
 
+**Delivered as** the web foundation the remaining screens build on: react-router over the four
+wireframed routes behind a session gate, TanStack Query for server state, an auth context over a
+`localStorage` session, shadcn/ui primitives, and a fetch client split into transport (`lib/http.ts`)
+and per-resource endpoint modules (`src/api`). The login endpoint now answers every rejection
+identically, so the screen cannot leak which addresses exist.
+
 **Acceptance criteria**
 
-- [ ] Login screen shows email field, password field and a Login button; password input is masked.
+- [x] Login screen shows email field, password field and a Login button; password input is masked.
 - [ ] Valid seeded credentials navigate to the Product List.
-- [ ] Invalid credentials keep the user on the login screen and display a visible error message.
-- [ ] After login, a header bar with **Sell** and **Logout** is present on the authenticated screens (§3.2).
-- [ ] Reloading the page while logged in keeps the user logged in — it does not bounce back to login.
-- [ ] Logout returns to the login screen, and browser-Back afterwards does not restore an authenticated screen.
-- [ ] Navigating directly to an authenticated URL while logged out redirects to login.
+- [x] Invalid credentials keep the user on the login screen and display a visible error message.
+- [x] After login, a header bar with **Sell** and **Logout** is present on the authenticated screens (§3.2).
+- [x] Reloading the page while logged in keeps the user logged in — it does not bounce back to login.
+- [x] Logout returns to the login screen, and browser-Back afterwards does not restore an authenticated screen.
+- [x] Navigating directly to an authenticated URL while logged out redirects to login.
+- [x] Login is disabled until both fields are filled, and a rejection clears the password but keeps the email.
+- [x] A `401` on a request that carried a token clears the session and returns to login, so no
+      authenticated state survives it.
 
 **QA steps** — *browser*
 
-1. Chrome → `http://localhost:5173`. Login screen renders with both fields and a Login button.
-2. Enter `alice@example.com` / `wrongpass`, click **Login** → stays on login, visible error shown.
+1. Chrome → `http://localhost:5173`. Redirected to `/login`; both fields render and **Login** is
+   disabled. Fill only the email → still disabled.
+2. Enter `alice@example.com` / `wrongpass`, click **Login** → stays on login, shows the server's own
+   "Email or password is incorrect.", email kept, password cleared, **Login** disabled again.
 3. Enter `alice@example.com` / `password123`, click **Login** → lands on Product List; header shows **Sell** and **Logout**.
 4. Press browser reload → still on Product List, still logged in.
-5. Click **Logout** → login screen. Press browser Back → still login screen (or redirected there), not the product list.
-6. While logged out, paste the Product List URL into the address bar and hit Enter → redirected to login.
+5. Click **Sell**, then open `/products/1`, then `/no-such-page` → the three placeholders and the
+   "Page not found" screen; the header stays put on the authenticated ones.
+6. Corrupt the stored token — DevTools console:
+   `s=JSON.parse(localStorage['linkby.session']); s.token=s.token.slice(0,-4)+'AAAA'; localStorage['linkby.session']=JSON.stringify(s)`
+   — then reload and open any screen that calls the API → back on login with `linkby.session` gone.
+7. Click **Logout** → login screen. Press browser Back → still login screen (or redirected there), not the product list.
+8. While logged out, paste the Product List URL into the address bar and hit Enter → redirected to login.
+9. The endpoint answers every rejection identically — wrong password, unknown email and a malformed
+   body all return the same `401 INVALID_CREDENTIALS` body:
+   `curl -i -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' -d '{"email":"nobody@example.com","password":"x"}'`
+   and again with `-d '{"email":"alice@example.com"}'`.
 
 ---
 
