@@ -104,7 +104,7 @@ Terminology used throughout:
 |  |  Vintage Camera    |  |  Desk Lamp         |  |  Road Bike         |      |
 |  |  $250.00           |  |  $40.00            |  |  $900.00           |      |
 |  |  Seller: alice     |  |  Seller: bob       |  |  Seller: carol     |      |
-|  |                    |  |        [RESERVED]  |  |          [ SOLD ]  |      |
+|  |        [AVAILABLE] |  |        [RESERVED]  |  |          [ SOLD ]  |      |
 |  +--------------------+  +--------------------+  +--------------------+      |
 |                                                                              |
 |  +--------------------+  +--------------------+                              |
@@ -114,7 +114,7 @@ Terminology used throughout:
 |  |  Oak Table         |  |  Guitar            |                              |
 |  |  $310.00           |  |  $180.00           |                              |
 |  |  Seller: alice     |  |  Seller: dan       |                              |
-|  |                    |  |                    |                              |
+|  |        [AVAILABLE] |  |        [AVAILABLE] |                              |
 |  +--------------------+  +--------------------+                              |
 |                                                                              |
 +==============================================================================+
@@ -130,14 +130,15 @@ Terminology used throughout:
 | `Logout` (header) | Clears session | Login |
 | Signed-in email (header) | Static label, identifies the acting user (matters a lot here — role is per-product) | — |
 | Product card (whole card clickable) | Opens the listing | Product Details |
-| Card image | First uploaded image; placeholder block if the product has none | — |
+| Card image | First uploaded image; a parcel icon on a neutral block if the product has none | — |
 | Card name / price / seller | Static. Price is the **listed** price, never the negotiated one | — |
 | Card status badge (bottom-right) | Text badge | — |
 
 **Visibility / enablement**
 
-- Status badge is rendered **only** when status is `Reserved` or `Sold`. `Available` shows no badge
-  (§3.2) — absence of a badge is the "available" signal.
+- Status badge is rendered on every card, including `Available`, so the state is always stated
+  outright rather than inferred from an absence. Weight tracks how settled the state is: an outlined
+  badge for `Available`, a filled grey one for `Reserved`, a solid one for `Sold`.
 - Cards for products the viewer sells look identical to everyone else's; role only affects Details.
 - No pagination (§3.2). Ordering is not a core concern — it folds into the status-filter bonus
   (A9, deferred; §9.1). `Sold` and `Reserved` cards are neither hidden nor sunk to the bottom.

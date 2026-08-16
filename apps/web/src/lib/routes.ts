@@ -5,3 +5,5 @@ export const ROUTES = {
   newProduct: '/products/new',
   productDetail: '/products/:id',
 } as const;
+
+export const productDetailPath = (id: number) => ROUTES.productDetail.replace(':id', String(id));

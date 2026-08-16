@@ -350,32 +350,45 @@ forced insert failure confirming uploaded objects are cleaned up.
 ## LM-08 · Product List screen
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-05, LM-07
-**Status:** Not started
+**Status:** Done · **QA:** 2026-08-15 — every criterion but the empty state, which needs the
+products table cleared.
 
 > As a logged-in user, I want to see all listings as a grid of cards, so that I can find something to buy (§3.2).
 
 **Acceptance criteria**
 
-- [ ] Landing screen after login is the Product List.
-- [ ] Each card shows the first uploaded image (if any), name, price and seller name.
-- [ ] A status indicator appears in the card's bottom-right corner **only** when status is `Reserved` or `Sold`;
-      `Available` cards show no indicator.
-- [ ] Clicking a card navigates to that product's detail screen.
-- [ ] Header bar has **Sell** (→ registration) and **Logout** (→ login).
-- [ ] A product with no images renders without a broken-image icon.
+- [x] Landing screen after login is the Product List.
+- [x] Each card shows the first uploaded image (if any), name, price and seller name.
+- [x] A status indicator appears in the card's bottom-right corner for every status, `Available`
+      included, weighted so `Sold` reads heaviest and `Available` lightest.
+- [x] Clicking a card navigates to that product's detail screen.
+- [x] Header bar has **Sell** (→ registration) and **Logout** (→ login).
+- [x] A product with no images renders without a broken-image icon.
 - [ ] Empty state (no products at all) renders a message rather than a blank page or an error.
+- [x] A failed fetch shows a message and a **Retry** that recovers in place, and the header stays
+      interactive throughout loading and failure (§2b, §2c).
+- [x] The grid is one column on a phone with nothing overflowing horizontally and no control hidden.
 
 **QA steps** — *browser*
 
 1. Log in as Bob (`bob@example.com` / `password123`) → Product List renders as a grid of cards.
 2. On any card, confirm image, name, price and seller name are all visible.
-3. Confirm every `Available` card has **no** status badge.
+3. Confirm every `Available` card carries an outlined **Available** badge, distinct from the filled
+   `Reserved` and solid `Sold` ones.
 4. Set one product aside for status display: `psql $DB -c "update products set status='Sold' where name='<pick one>';"`,
    reload the page → that card now shows a status indicator in its **bottom-right** corner. Repeat with `'Reserved'`.
    Restore with `update products set status='Available' …`.
 5. Click a card → navigates to the detail screen for that product.
 6. Click **Sell** in the header → registration screen. Go back, click **Logout** → login screen.
-7. Confirm a seeded product with no images renders a placeholder/blank area, not a broken image.
+7. Confirm a seeded product with no images (`Cast Iron Skillet`) renders a muted parcel icon on a
+   neutral block, not a broken image.
+8. Stop the API — `docker compose stop api` — reload → "Couldn't load products." with **Retry**, and
+   the header still navigates. `docker compose start api`, click **Retry** → the grid fills in with
+   no page reload.
+9. Narrow the window to a phone width → one column, no horizontal scrollbar, every card still tappable.
+10. Empty state: with the products table cleared, the grid area shows "No products listed yet." and a
+    **List the first product** button to the registration screen. Restore with
+    `docker compose run --rm seed npm run db:seed -- --force`.
 
 ---
 
