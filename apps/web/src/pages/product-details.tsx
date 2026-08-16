@@ -1,5 +1,5 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Ban, BookmarkCheck, CircleAlert, Store } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Ban, BookmarkCheck, CircleAlert, CircleCheck, Store } from 'lucide-react';
 import { useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -8,6 +8,16 @@ import { hasActions, ProductActionPanel } from '@/components/products/product-ac
 import { ProductImages } from '@/components/products/product-images';
 import { ProductStatusBadge } from '@/components/products/product-status-badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { formatPrice } from '@/lib/format';
@@ -18,6 +28,7 @@ export function ProductDetailsPage() {
   const { id } = useParams();
   const { session } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const productId = Number(id);
   const idIsUsable = Number.isInteger(productId) && productId > 0;
@@ -32,7 +43,7 @@ export function ProductDetailsPage() {
 
   const purchase = useMutation({
     mutationFn: () => productsApi.purchaseProduct(productId),
-    onSuccess: () => navigate(ROUTES.products),
+    onSuccess: (bought) => queryClient.setQueryData(['product', productId], bought),
     // The refetch re-renders the screen as it truly is now, so the toast only has to say the click did nothing.
     onError: (error) => {
       toast.error(
@@ -144,6 +155,28 @@ export function ProductDetailsPage() {
           }}
         />
       </div>
+
+      {purchase.isSuccess && (
+        <AlertDialog open>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogMedia>
+                <CircleCheck />
+              </AlertDialogMedia>
+              <AlertDialogTitle>Purchase successful</AlertDialogTitle>
+              <AlertDialogDescription>
+                {/* Non-null once sold: the sale is what sets it. */}
+                You bought {purchase.data.name} for {formatPrice(purchase.data.finalPriceCents!)}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => navigate(ROUTES.products)}>
+                Back to products
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

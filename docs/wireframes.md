@@ -177,15 +177,16 @@ Terminology used throughout:
 |   (!) Couldn't load products.   [ Retry ]                                    |
 ```
 
-### 2d. Post-action feedback — none in core (DECIDED)
+### 2d. Post-action feedback (DECIDED)
 
-Every completing action (Purchase, Accept, Counter submit, Registration submit) lands back on this
-page as a **plain navigation with no confirmation message**. The grid simply re-renders with the
-product's new state. There is no banner, no toast, and no interstitial in core scope.
+**Purchase** confirms with the modal drawn in §9.4 and navigates here only when the user
+acknowledges it. Purchase is the one action that completes a sale and takes money, and it completes
+fast enough that a plain navigation reads as nothing having happened.
 
-The consequence is accepted and understood: all four mutations are silent, and the only evidence an
-action succeeded is the changed status badge (or, for a new listing, the new card). The confirmation
-treatment ruled on by the product owner is a **modal**, deferred to bonus scope — see §9.4.
+**Accept, Counter submit and Registration submit** land back on this page as a **plain navigation
+with no confirmation message** — no banner, no toast, no interstitial. The grid simply re-renders
+with the product's new state, and the only evidence the action succeeded is the changed status badge
+(or, for a new listing, the new card). Their modal variants stay in bonus scope.
 
 ---
 
@@ -880,7 +881,11 @@ Must be a **DOM modal** — see the constraint in §9.4.
 
 ### 9.4 Post-action confirmation modal (A13)
 
-Replaces the core "silent navigation" of §2d. On a completing action the user gets a blocking modal
+> **Built for Purchase.** The purchase variant is implemented on Product Details — title
+> `Purchase successful`, body `You bought "<name>" for <final price>.`, one button `Back to products`.
+> The remaining variants (offer sent / offer accepted / product listed) stay in bonus scope.
+
+Replaces the "silent navigation" of §2d. On a completing action the user gets a blocking modal
 rather than a banner:
 
 ```
