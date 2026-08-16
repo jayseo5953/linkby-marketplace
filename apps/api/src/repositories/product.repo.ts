@@ -1,5 +1,5 @@
 import { desc, eq } from 'drizzle-orm';
-import { db, type Executor, type Tx } from '../db/client';
+import { db, type Tx } from '../db/client';
 import { products, users } from '../db/schema';
 import type { ProductEntity } from '../domain/product-policy';
 
@@ -60,20 +60,22 @@ export async function lockById(id: number, tx: Tx): Promise<ProductEntity | unde
   return rows[0];
 }
 
+// Both take a `Tx` rather than an `Executor`: neither is correct outside the `lockById` that
+// decided the transition was allowed, so the pool is not an option worth offering.
 export async function markReserved(
   id: number,
   values: { buyerId: number; finalPriceCents: number },
-  exec: Executor = db,
+  tx: Tx,
 ): Promise<void> {
-  await exec.update(products).set({ status: 'Reserved', ...values }).where(eq(products.id, id));
+  await tx.update(products).set({ status: 'Reserved', ...values }).where(eq(products.id, id));
 }
 
 export async function markSold(
   id: number,
   values: { buyerId: number; finalPriceCents: number },
-  exec: Executor = db,
+  tx: Tx,
 ): Promise<void> {
-  await exec.update(products).set({ status: 'Sold', ...values }).where(eq(products.id, id));
+  await tx.update(products).set({ status: 'Sold', ...values }).where(eq(products.id, id));
 }
 
 export async function insert(values: {
