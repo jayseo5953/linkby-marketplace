@@ -137,7 +137,8 @@ describe('listing a product', () => {
 
     const list = await call('GET', '/api/products', { token: session.bob.token });
     expect(list.status).toBe(200);
-    expect(list.body.some((row: { id: number }) => row.id === id)).toBe(true);
+    // Newest first, so a product created a moment ago is on the first page.
+    expect(list.body.items.some((row: { id: number }) => row.id === id)).toBe(true);
 
     const detail = await call('GET', `/api/products/${id}`, { token: session.bob.token });
     expect(detail.status).toBe(200);

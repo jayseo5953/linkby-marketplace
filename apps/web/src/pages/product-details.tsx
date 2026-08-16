@@ -66,7 +66,11 @@ export function ProductDetailsPage() {
 
   const purchase = useMutation({
     mutationFn: () => productsApi.purchaseProduct(productId),
-    onSuccess: (bought) => queryClient.setQueryData(['product', productId], bought),
+    onSuccess: (bought) => {
+      queryClient.setQueryData(['product', productId], bought);
+      // The list is cached past this screen, so it has to be told the status moved.
+      void queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
     // The refetch re-renders the screen as it truly is now, so the toast only has to say the click did nothing.
     onError: (error) => {
       toast.error(errorMessage(error, "Couldn't reach the server to buy this product"), {
@@ -83,6 +87,7 @@ export function ProductDetailsPage() {
       setOpenForm(null);
       queryClient.setQueryData(['product', productId], reserved);
       void queryClient.invalidateQueries({ queryKey: ['product', productId, 'offers'] });
+      void queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (error) => {
       toast.error(errorMessage(error, "Couldn't reach the server to accept this offer"), {

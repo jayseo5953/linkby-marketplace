@@ -13,3 +13,17 @@ export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
  */
 export const OFFER_SIDES = ['buyer', 'seller'] as const;
 export type OfferSide = (typeof OFFER_SIDES)[number];
+
+/**
+ * How the product list is narrowed. Its own vocabulary rather than the statuses above, because
+ * two of the six are about the viewer rather than the product.
+ */
+export const PRODUCT_VIEWS = {
+  All: 'all',
+  Available: 'available',
+  Reserved: 'reserved',
+  Sold: 'sold',
+  ListedByMe: 'listed-by-me',
+  ReservedForMe: 'reserved-for-me',
+} as const;
+export type ProductView = (typeof PRODUCT_VIEWS)[keyof typeof PRODUCT_VIEWS];

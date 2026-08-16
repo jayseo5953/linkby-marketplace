@@ -15,6 +15,13 @@
       "when": 1786784534582,
       "tag": "0001_clammy_amazoness",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786862774204,
+      "tag": "0002_skinny_jasper_sitwell",
+      "breakpoints": true
     }
   ]
 }

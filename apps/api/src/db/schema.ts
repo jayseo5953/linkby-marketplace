@@ -71,6 +71,15 @@ export const products = pgTable(
       sql`${table.buyerId} is null or ${table.buyerId} <> ${table.sellerId}`,
     ),
     index('products_status_created_at_idx').on(table.status, table.createdAt.desc()),
+    // The unfiltered list, which is the default view and has no predicate to ride another index.
+    index('products_created_at_idx').on(table.createdAt.desc(), table.id.desc()),
+    // The two owner-scoped list views. Both carry createdAt so the list's ordering is indexed too.
+    index('products_seller_created_at_idx').on(table.sellerId, table.createdAt.desc()),
+    index('products_buyer_status_created_at_idx').on(
+      table.buyerId,
+      table.status,
+      table.createdAt.desc(),
+    ),
   ],
 );
 

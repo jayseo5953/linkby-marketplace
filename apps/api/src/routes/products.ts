@@ -1,4 +1,8 @@
-import { createOfferRequestSchema, createProductRequestSchema } from '@linkby/shared';
+import {
+  createOfferRequestSchema,
+  createProductRequestSchema,
+  listProductsQuerySchema,
+} from '@linkby/shared';
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate';
 import { uploadImages } from '../middleware/upload';
@@ -22,8 +26,10 @@ productRouter.post(
   },
 );
 
-productRouter.get('/api/products', authenticate, async (_req, res) => {
-  res.status(200).json(await productService.listProducts());
+// Parsed here rather than via `validate`, which reads `req.body`; this is the only query we take.
+productRouter.get('/api/products', authenticate, async (req, res) => {
+  const query = listProductsQuerySchema.parse(req.query);
+  res.status(200).json(await productService.listProducts(req.user, query));
 });
 
 productRouter.get('/api/products/:id', authenticate, parseId, async (req, res) => {

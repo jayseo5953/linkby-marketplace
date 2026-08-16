@@ -1,17 +1,23 @@
 import {
   productDetailResponseSchema,
-  productListItemResponseSchema,
+  productPageResponseSchema,
   productResponseSchema,
   type CreateProductRequest,
+  type ListProductsQuery,
   type ProductDetailResponse,
-  type ProductListItemResponse,
+  type ProductPageResponse,
   type ProductResponse,
 } from '@linkby/shared';
-import { z } from 'zod';
 import { authedRequest } from '@/lib/http';
 
-export async function listProducts(): Promise<ProductListItemResponse[]> {
-  return authedRequest('/api/products', z.array(productListItemResponseSchema));
+export async function listProducts(query: ListProductsQuery): Promise<ProductPageResponse> {
+  const params = new URLSearchParams({
+    view: query.view,
+    q: query.q,
+    page: String(query.page),
+  });
+
+  return authedRequest(`/api/products?${params}`, productPageResponseSchema);
 }
 
 export async function getProduct(id: number): Promise<ProductDetailResponse> {

@@ -1,4 +1,5 @@
-import { desc, eq } from 'drizzle-orm';
+import { PAGE_SIZE, PRODUCT_VIEWS, type ProductView } from '@linkby/shared';
+import { and, count, desc, eq, ilike, type SQL } from 'drizzle-orm';
 import { db, type Tx } from '../db/client';
 import { products, users } from '../db/schema';
 import type { ProductEntity } from '../domain/product-policy';
@@ -32,14 +33,50 @@ const columns = {
   createdAt: products.createdAt,
 };
 
+type ListFilters = { view: ProductView; q: string; page: number; viewerId: number };
+
+function viewCondition(view: ProductView, viewerId: number): SQL | undefined {
+  switch (view) {
+    case PRODUCT_VIEWS.Available:
+      return eq(products.status, 'Available');
+    case PRODUCT_VIEWS.Reserved:
+      return eq(products.status, 'Reserved');
+    case PRODUCT_VIEWS.Sold:
+      return eq(products.status, 'Sold');
+    case PRODUCT_VIEWS.ListedByMe:
+      return eq(products.sellerId, viewerId);
+    // Not buyer alone: a Sold product keeps its buyer, and those are bought, not awaiting purchase.
+    case PRODUCT_VIEWS.ReservedForMe:
+      return and(eq(products.buyerId, viewerId), eq(products.status, 'Reserved'));
+    case PRODUCT_VIEWS.All:
+      return undefined;
+  }
+}
+
 // Joined rather than looked up per row, so the seller name costs no extra round trip (§5).
-export async function findAll(): Promise<ProductRow[]> {
-  return db
-    .select(columns)
-    .from(products)
-    .innerJoin(users, eq(users.id, products.sellerId))
-    // Ordering is not a core concern (§2), but a list endpoint still has to be deterministic.
-    .orderBy(desc(products.createdAt), desc(products.id));
+export async function findPage(filters: ListFilters): Promise<{ rows: ProductRow[]; total: number }> {
+  const { view, q, page, viewerId } = filters;
+  // Name only: matching description text would surface listings whose names look unrelated.
+  const where = and(
+    viewCondition(view, viewerId),
+    q === '' ? undefined : ilike(products.name, `%${q}%`),
+  );
+
+  const [rows, totals] = await Promise.all([
+    db
+      .select(columns)
+      .from(products)
+      .innerJoin(users, eq(users.id, products.sellerId))
+      // Ordering is not a core concern (§2), but a list endpoint still has to be deterministic.
+      .orderBy(desc(products.createdAt), desc(products.id))
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE)
+      .where(where),
+    // Counted without the join: the seller is not part of the predicate, so joining would only cost.
+    db.select({ value: count() }).from(products).where(where),
+  ]);
+
+  return { rows, total: totals[0]?.value ?? 0 };
 }
 
 export async function findById(id: number): Promise<ProductRow | undefined> {

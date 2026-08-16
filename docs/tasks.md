@@ -155,6 +155,14 @@ demonstrates, so the state is legible from the UI without consulting this table.
 | 8 | alice | Reserved | 2 | bob's offer accepted; carol's losing offers remain in history |
 | 9 | alice | Sold | 1 | carol's offer accepted |
 | 10 | bob | Sold | 1 | none — alice purchased outright, so there is no offer behind the sale |
+| 11 | carol | Available | 1 | none — carol's first listing, so "Listed by me" is non-empty for her |
+| 12 | carol | Sold | 1 | none — a completed sale by a third seller |
+| 13 | bob | Reserved | 1 | carol's offer accepted, so "Reserved for me" is non-empty for a second buyer |
+| 14 | alice | Available | 0 | none — a second placeholder card, reachable past the first page |
+| 15 | bob | Available | 1 | none — the fifteenth row, which is what makes the list paginate |
+
+Rows 11–15 exist for LM-22: they make every filter view non-empty for at least one user, and take the
+list past a single page of ten.
 
 **Acceptance criteria**
 
@@ -162,9 +170,9 @@ demonstrates, so the state is legible from the UI without consulting this table.
       no duplicate users, products or offers.
 - [x] The three users in the seed identity contract above exist with those exact emails, passwords and display names.
 - [x] Passwords are stored hashed, never in plaintext.
-- [x] The ten products above exist, matching the matrix on seller, status, image count and negotiation state.
+- [x] The fifteen products above exist, matching the matrix on seller, status, image count and negotiation state.
 - [x] Every product name ends `(Seeded Demo)` and its description names the state it demonstrates.
-- [x] Products 8–10 each name a committed buyer; products 1–7 name none.
+- [x] Products 8–10, 12 and 13 each name a committed buyer; the rest name none.
 - [x] Seeded offer sequences satisfy the rules the negotiation engine will later enforce — turns alternate, only
       the newest offer in a pair is actionable, and no offer post-dates the acceptance that reserved the product.
 - [x] Every key in `image_keys` resolves to an object that actually exists in the bucket.
@@ -334,7 +342,9 @@ forced insert failure confirming uploaded objects are cleaned up.
       negotiation state comes from the history read model (LM-15).
 - [x] An unknown product id returns `404`.
 - [x] Both endpoints require authentication.
-- [x] No pagination is implemented (explicitly not required, §3.2).
+- [x] ~~No pagination is implemented (explicitly not required, §3.2).~~ **Superseded by LM-22**, which
+      paginates the list at ten per page and wraps the response as `{ items, total }`. §3.2 does not require
+      pagination; it was added anyway, so this endpoint no longer returns a bare array.
 
 **QA steps** — *backend/curl*
 
@@ -1054,37 +1064,65 @@ cut; it is intentionally absent and nothing is renumbered to fill the gap.
 
 ---
 
-## LM-22 · Product List status filter and ordering
+## LM-22 · Product List filters, search and pagination
 
-**Priority:** P2 · **Estimate:** 2h · **Depends on:** LM-08
-**Status:** Not started
+**Priority:** P2 · **Estimate:** 3h · **Depends on:** LM-08
+**Status:** Done · **QA:** passed 2026-08-16 — all 12 steps, curl cross-checked against SQL for every
+view, plus focus retention while typing and a cold load restoring both controls from the URL.
 
-> As a shopper, I want to filter the product list by status and control its order, so that I can look at what is
-> still buyable and see the freshest listings first.
+**Absorbs** the search sub-item that was LM-24's first bullet, and supersedes LM-07's "no pagination"
+criterion.
+
+> As a shopper, I want to narrow the product list to what I care about and page through the rest, so that I can
+> find a listing without reading every card.
+
+**One `view` parameter, not orthogonal filters** — status and ownership are a single select, so a
+contradictory pair like "Available" plus "sold by me" is not representable rather than merely handled.
+
+| `view` | Predicate |
+| --- | --- |
+| `all` (default) | none |
+| `available` / `reserved` / `sold` | `status` matches |
+| `listed-by-me` | `seller_id` is the viewer, any status |
+| `reserved-for-me` | `buyer_id` is the viewer **and** status is `Reserved` |
 
 **Acceptance criteria**
 
-- [ ] Filter offers `Available` / `Reserved` / `Sold` and a way back to showing everything.
-- [ ] Filtering happens server-side against the status index from LM-02, not by filtering a full client-side list.
-- [ ] The selected filter is visible in the UI, and an empty result shows a message rather than a blank grid.
-- [ ] Default view (no filter) shows the same set of products as LM-08.
-- [ ] **List ordering** *(folded in here rather than tracked separately)*: the list has a defined,
-      stable order — newest listing first by default — so the grid does not reshuffle between reloads.
-- [ ] Ordering is applied server-side and survives filtering (a filtered grid is ordered by the same rule).
-- [ ] Ordering does not introduce an unindexed sort on the hot list path (§5).
+- [x] `GET /api/products?view=&q=&page=` returns `{ items, total }`; all three params absent behaves as LM-08 did.
+- [x] The six views above are offered in one select, with the two owner-scoped ones visually separated.
+- [x] `reserved-for-me` excludes `Sold` products, which keep their buyer but are no longer awaiting purchase.
+- [x] Filtering, search and paging all happen server-side — never by filtering a full client-side list.
+- [x] `q` matches the product name, case-insensitively, and combines with any view.
+- [x] Page size is ten; `total` is the count under the same predicate, so it is stable across pages.
+- [x] An unknown `view`, a zero or non-numeric `page` are rejected with `400`.
+- [x] Filter state lives in the URL, so a reload, the back button and a shared link all restore the same grid.
+- [x] Changing the view or the search resets to page one.
+- [x] Typing in search does not lose focus — the controls stay mounted while the grid reloads.
+- [x] An empty result distinguishes "nothing matches this filter" (with a way to clear it) from "nothing listed yet".
+- [x] **List ordering**: newest first, applied server-side, and unchanged by filtering or paging.
+- [x] The owner-scoped views are indexed rather than seq-scanned (§5) — `products_seller_created_at_idx`
+      and `products_buyer_status_created_at_idx`.
+- [x] Search is a substring match and therefore unindexed. Accepted for this scale; a trigram index is the
+      scalable answer and is deliberately not built.
 
-**QA steps** — *browser + curl*
+**QA steps** — *backend/curl + browser*
 
-1. `curl -s 'http://localhost:3000/api/products?status=Sold' -H "Authorization: Bearer $TOKEN_BOB" | jq 'map(.status) | unique'` → `["Sold"]`.
-2. Log in as Bob, select the `Available` filter → only cards without status badges remain; count matches
-   `psql $DB -c "select count(*) from products where status='Available';"`.
-3. Select `Reserved`, then `Sold` → grid contents match the corresponding SQL counts.
-4. Select a status with zero matches → empty-state message, not a blank page or spinner.
-5. Clear the filter → full grid returns.
-6. Ordering: note the first three card names, reload the page three times → the same three, in the same order.
-7. Ordering rule: create a new product as Alice, return to the list → it appears **first**. Cross-check against
-   `psql $DB -c "select name from products order by created_at desc limit 3;"` → same order as the grid.
-8. Ordering survives filtering: apply the `Available` filter → the remaining cards are still newest-first.
+1. Each view against SQL: `curl -s 'localhost:3000/api/products?view=available' -H "Authorization: Bearer $TOKEN_ALICE"`
+   → `total` equals `select count(*) from products where status='Available'`. Repeat for `reserved` and `sold`.
+2. `view=listed-by-me` as each of alice, bob and carol → 9, 4 and 2, matching `count(*) ... where seller_id=`.
+3. `view=reserved-for-me` as bob and carol → 1 each; as alice → 0 with an empty `items`, not an error.
+4. `page=1` and `page=2` → 10 and 5 items, no overlap, union of 15, `total` 15 on both. `page=3` → empty.
+5. `q=guitar` → 2, `q=chair` → 2, `q=GUITAR` → 2 (case-insensitive), `q=zzzz` → 0.
+6. `view=nope`, `page=0`, `page=abc` → `400`. No `Authorization` → `401`.
+7. Index use: `set enable_seqscan=off; explain` the two owner-scoped predicates → both use their index.
+8. Browser: open the list → 10 cards, "Page 1 of 2", **Previous** disabled. Click **Next** → 5 cards, disjoint
+   from page 1, **Next** now disabled, URL carries `?page=2`.
+9. Pick **Listed by me** from the select → only the viewer's own cards, page resets to 1.
+10. Pick **Reserved for me** as a user with none → "No listings match this filter." with **Clear filters**;
+    the same URL as another user shows that user's reserved item.
+11. Type `guitar` in the search box → the URL stays put until typing pauses, then narrows to 2 cards, and the
+    caret is still in the box.
+12. Cold-load `?view=available&q=chair` → the select shows "Available", the box shows "chair", one card renders.
 
 ---
 
@@ -1118,20 +1156,20 @@ cut; it is intentionally absent and nothing is renumbered to fill the gap.
 
 ---
 
-## LM-24 · Remaining §4.2 bonuses (search, "my offers", mobile)
+## LM-24 · Remaining §4.2 bonuses ("my offers", mobile)
 
-**Priority:** P2 · **Estimate:** 3h (≈1h each, pick individually) · **Depends on:** LM-08, LM-16
+**Priority:** P2 · **Estimate:** 2h (≈1h each, pick individually) · **Depends on:** LM-08, LM-16
 **Status:** Not started
 
-> As a user, I want to search listings, see only products I have offers on, and use the app on my phone, so that
-> the app is more usable at scale (§4.2).
+> As a user, I want to see only products I have offers on and use the app on my phone, so that the app is more
+> usable at scale (§4.2).
 
-**Treat as three independent sub-items — take them one at a time, in this order, and stop when time runs out.**
+**Treat as two independent sub-items — take them one at a time, in this order, and stop when time runs out.**
 
 **Acceptance criteria**
 
-- [ ] *Search:* a query box filters the product list by name server-side; empty query restores the full list;
-      no-match shows an empty-state message.
+- [x] ~~*Search:* a query box filters the product list by name server-side.~~ **Delivered by LM-22**, which
+      owns the whole filter bar; splitting search from the view select would have meant two owners for one control.
 - [ ] *"My offers" filter:* shows only products where the current user owns a negotiation thread; correct for a
       user with zero threads (empty state).
 - [ ] *Mobile responsiveness:* Product List, Detail and Registration remain usable and non-overlapping at a

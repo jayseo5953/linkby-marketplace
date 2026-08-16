@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type {
   CreateProductRequest,
+  ListProductsQuery,
   ProductDetailResponse,
-  ProductListItemResponse,
+  ProductPageResponse,
   ProductResponse,
   SessionUser,
 } from '@linkby/shared';
@@ -59,19 +60,25 @@ export async function createProduct(
   };
 }
 
-export async function listProducts(): Promise<ProductListItemResponse[]> {
-  const rows = await productRepo.findAll();
+export async function listProducts(
+  viewer: SessionUser,
+  query: ListProductsQuery,
+): Promise<ProductPageResponse> {
+  const { rows, total } = await productRepo.findPage({ ...query, viewerId: viewer.id });
 
-  return rows.map(({ id, name, priceCents, status, seller, buyerId, imageKeys, createdAt }) => ({
-    id,
-    name,
-    priceCents,
-    status,
-    seller,
-    buyerId,
-    imageUrl: imageKeys.map(publicUrl).at(0) ?? null,
-    createdAt: createdAt.toISOString(),
-  }));
+  return {
+    items: rows.map(({ id, name, priceCents, status, seller, buyerId, imageKeys, createdAt }) => ({
+      id,
+      name,
+      priceCents,
+      status,
+      seller,
+      buyerId,
+      imageUrl: imageKeys.map(publicUrl).at(0) ?? null,
+      createdAt: createdAt.toISOString(),
+    })),
+    total,
+  };
 }
 
 export async function getProduct(viewer: SessionUser, id: number): Promise<ProductDetailResponse> {

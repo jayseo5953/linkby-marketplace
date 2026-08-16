@@ -1,5 +1,5 @@
 import { MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH } from '@linkby/shared';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -16,6 +16,7 @@ import { ROUTES } from '@/lib/routes';
 
 export function ProductRegistrationPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Page itself is a form, if evolves, could be split into a form component
   const [name, setName] = useState('');
@@ -28,8 +29,10 @@ export function ProductRegistrationPage() {
   const create = useMutation({
     mutationFn: (priceCents: number) =>
       productsApi.createProduct({ name, description, priceCents }, images),
-    // The list refetches on mount, so the new product is there without invalidating anything.
-    onSuccess: () => navigate(ROUTES.products),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['products'] });
+      navigate(ROUTES.products);
+    },
     onSettled: () => {
       inFlight.current = false;
     },

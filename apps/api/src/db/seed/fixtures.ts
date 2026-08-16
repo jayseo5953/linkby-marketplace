@@ -169,4 +169,55 @@ export const products: SeedProduct[] = [
     finalPriceCents: 6500,
     offers: [],
   },
+  {
+    seller: 'carol',
+    name: 'Famille Verte Teapot (Seeded Demo)',
+    description:
+      'Hand-painted florals with a green key border, lid original, no chips or restoration. [Demo: available, listed by carol — shows under Listed by me when she is the viewer.]',
+    priceCents: 26000,
+    photos: ['teapot-1.jpg'],
+    offers: [],
+  },
+  {
+    seller: 'carol',
+    name: 'Gilt Pendant Watch (Seeded Demo)',
+    description:
+      'Enamelled dial in an octagonal gilt case, hanging loop intact, movement not running. [Demo: sold by carol — the Sold filter spans more than one seller.]',
+    priceCents: 88000,
+    photos: ['pocket-watch-1.jpg'],
+    status: 'Sold',
+    buyer: 'alice',
+    finalPriceCents: 88000,
+    offers: [],
+  },
+  {
+    seller: 'bob',
+    name: 'Kneehole Writing Desk (Seeded Demo)',
+    description:
+      'Mahogany with fretwork drawer fronts and the original brass handles. Collection only. [Demo: reserved for carol — shows under Reserved for me when she is the viewer.]',
+    priceCents: 190000,
+    photos: ['writing-desk-1.jpg'],
+    status: 'Reserved',
+    buyer: 'carol',
+    finalPriceCents: 165000,
+    offers: [{ buyer: 'carol', by: 'buyer', cents: 165000, minutesAgo: 500 }],
+  },
+  {
+    seller: 'alice',
+    name: 'Box of Assorted Vinyl (Seeded Demo)',
+    description:
+      'Around eighty LPs, mostly jazz and soul, sleeves play-worn. Unsorted. [Demo: available with no images — a second placeholder card, on the second page.]',
+    priceCents: 3500,
+    photos: [],
+    offers: [],
+  },
+  {
+    seller: 'bob',
+    name: 'Glass Candlestick (Seeded Demo)',
+    description:
+      'Air-twist stem on a folded foot, no cracks, slight wear to the base. [Demo: available — the fifteenth listing, so the grid runs to two pages.]',
+    priceCents: 7500,
+    photos: ['candlestick-1.jpg'],
+    offers: [],
+  },
 ];

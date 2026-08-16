@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PRODUCT_STATUSES } from '../domain/product';
+import { PRODUCT_STATUSES, PRODUCT_VIEWS } from '../domain/product';
 import { positiveIntFromText } from './primitives';
 
 /**
@@ -69,6 +69,22 @@ export const productListItemResponseSchema = z.object({
   createdAt: z.string(),
 });
 
+export const PAGE_SIZE = 10;
+
+// One `view`, not orthogonal status and owner params: a contradictory pair cannot be expressed.
+export const listProductsQuerySchema = z.object({
+  view: z.enum(PRODUCT_VIEWS).default(PRODUCT_VIEWS.All),
+  q: z.string().trim().max(MAX_NAME_LENGTH).default(''),
+  page: positiveIntFromText.prefault('1'),
+});
+
+export const productPageResponseSchema = z.object({
+  items: z.array(productListItemResponseSchema),
+  total: z.number().int().nonnegative(),
+});
+
+export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;
+export type ProductPageResponse = z.infer<typeof productPageResponseSchema>;
 export type CreateProductRequest = z.infer<typeof createProductRequestSchema>;
 export type ProductResponse = z.infer<typeof productResponseSchema>;
 export type ProductViewer = z.infer<typeof productViewerSchema>;
