@@ -133,7 +133,7 @@ describe('session', () => {
 
 describe('listing a product', () => {
   it('creates with an image, then appears in the list and the detail', async () => {
-    const id = await listProduct('Listing', 50_00, true);
+    const id = await listProduct('Listing', 5000, true);
 
     const list = await call('GET', '/api/products', { token: session.bob.token });
     expect(list.status).toBe(200);
@@ -145,7 +145,7 @@ describe('listing a product', () => {
     expect(detail.body.imageUrls).toHaveLength(1);
     expect(detail.body.viewer).toEqual({
       canPurchase: true,
-      purchasePriceCents: 50_00,
+      purchasePriceCents: 5000,
       canStartNegotiation: true,
     });
   });
@@ -174,7 +174,7 @@ describe('listing a product', () => {
   });
 
   it('refuses the seller their own product', async () => {
-    const id = await listProduct('Own', 10_00);
+    const id = await listProduct('Own', 1000);
 
     const detail = await call('GET', `/api/products/${id}`, { token: session.alice.token });
     expect(detail.body.viewer.canPurchase).toBe(false);
@@ -189,26 +189,26 @@ describe('listing a product', () => {
 
 describe('negotiation', () => {
   it('runs a full thread and reflects each viewer in the history', async () => {
-    const id = await listProduct('Thread', 100_00);
+    const id = await listProduct('Thread', 10000);
 
-    const opened = await offer(session.bob.token, id, 80_00);
+    const opened = await offer(session.bob.token, id, 8000);
     expect(opened.status).toBe(201);
     expect(opened.body.madeBy).toBe('buyer');
     expect(opened.body.buyerId).toBe(session.bob.user.id);
 
-    const countered = await offer(session.alice.token, id, 90_00, opened.body.id);
+    const countered = await offer(session.alice.token, id, 9000, opened.body.id);
     expect(countered.status).toBe(201);
     expect(countered.body.madeBy).toBe('seller');
     // The seller's counter carries the buyer's id: it names the thread, not the author.
     expect(countered.body.buyerId).toBe(session.bob.user.id);
 
-    const fromCarol = await offer(session.carol.token, id, 70_00);
+    const fromCarol = await offer(session.carol.token, id, 7000);
     expect(fromCarol.status).toBe(201);
 
     const history = await call('GET', `/api/products/${id}/offers`, { token: session.alice.token });
     expect(history.status).toBe(200);
     expect(history.body.map((row: HistoryRow) => row.amountCents)).toEqual([
-      80_00, 90_00, 70_00,
+      8000, 9000, 7000,
     ]);
     // Every viewer sees every thread.
     expect(new Set(history.body.map((row: HistoryRow) => row.buyer.id)).size).toBe(2);
@@ -228,18 +228,18 @@ describe('negotiation', () => {
   });
 
   it('names the rule that stopped each refused offer', async () => {
-    const id = await listProduct('Refusals', 100_00);
-    const opened = await offer(session.bob.token, id, 80_00);
+    const id = await listProduct('Refusals', 10000);
+    const opened = await offer(session.bob.token, id, 8000);
 
-    expect((await offer(session.alice.token, id, 50_00)).body.error.code).toBe('OWN_PRODUCT');
-    expect((await offer(session.bob.token, id, 85_00)).body.error.code).toBe('THREAD_ALREADY_OPEN');
-    expect((await offer(session.carol.token, id, 60_00, opened.body.id)).body.error.code).toBe(
+    expect((await offer(session.alice.token, id, 5000)).body.error.code).toBe('OWN_PRODUCT');
+    expect((await offer(session.bob.token, id, 8500)).body.error.code).toBe('THREAD_ALREADY_OPEN');
+    expect((await offer(session.carol.token, id, 6000, opened.body.id)).body.error.code).toBe(
       'NOT_YOUR_TURN',
     );
 
-    expect((await offer(session.alice.token, id, 90_00, opened.body.id)).status).toBe(201);
+    expect((await offer(session.alice.token, id, 9000, opened.body.id)).status).toBe(201);
     // The offer Alice answered is no longer the newest in Bob's thread.
-    expect((await offer(session.bob.token, id, 82_00, opened.body.id)).body.error.code).toBe(
+    expect((await offer(session.bob.token, id, 8200, opened.body.id)).body.error.code).toBe(
       'OFFER_SUPERSEDED',
     );
 
@@ -250,8 +250,8 @@ describe('negotiation', () => {
 
 describe('settling', () => {
   it('accept reserves at the offered amount, then the reserved buyer buys it', async () => {
-    const id = await listProduct('Accept', 100_00);
-    const opened = await offer(session.bob.token, id, 75_00);
+    const id = await listProduct('Accept', 10000);
+    const opened = await offer(session.bob.token, id, 7500);
 
     const accepted = await call('POST', `/api/offers/${opened.body.id}/accept`, {
       token: session.alice.token,
@@ -259,9 +259,9 @@ describe('settling', () => {
     expect(accepted.status).toBe(200);
     expect(accepted.body.status).toBe('Reserved');
     expect(accepted.body.buyerId).toBe(session.bob.user.id);
-    expect(accepted.body.finalPriceCents).toBe(75_00);
+    expect(accepted.body.finalPriceCents).toBe(7500);
     // The listed price survives the settlement.
-    expect(accepted.body.priceCents).toBe(100_00);
+    expect(accepted.body.priceCents).toBe(10000);
 
     const forCarol = await call('GET', `/api/products/${id}`, { token: session.carol.token });
     expect(forCarol.body.viewer.canPurchase).toBe(false);
@@ -269,14 +269,14 @@ describe('settling', () => {
     const forBob = await call('GET', `/api/products/${id}`, { token: session.bob.token });
     expect(forBob.body.viewer).toEqual({
       canPurchase: true,
-      purchasePriceCents: 75_00,
+      purchasePriceCents: 7500,
       canStartNegotiation: false,
     });
 
     const bought = await call('POST', `/api/products/${id}/purchase`, { token: session.bob.token });
     expect(bought.status).toBe(200);
     expect(bought.body.status).toBe('Sold');
-    expect(bought.body.finalPriceCents).toBe(75_00);
+    expect(bought.body.finalPriceCents).toBe(7500);
 
     // A settled product freezes every row control.
     const history = await call('GET', `/api/products/${id}/offers`, { token: session.alice.token });
@@ -284,12 +284,12 @@ describe('settling', () => {
   });
 
   it('a direct purchase settles at the listed price', async () => {
-    const id = await listProduct('Direct', 42_00);
+    const id = await listProduct('Direct', 4200);
 
     const bought = await call('POST', `/api/products/${id}/purchase`, { token: session.bob.token });
     expect(bought.status).toBe(200);
     expect(bought.body.status).toBe('Sold');
-    expect(bought.body.finalPriceCents).toBe(42_00);
+    expect(bought.body.finalPriceCents).toBe(4200);
 
     const again = await call('POST', `/api/products/${id}/purchase`, { token: session.carol.token });
     expect(again.status).toBe(409);
@@ -299,7 +299,7 @@ describe('settling', () => {
 
 describe('atomicity', () => {
   it('ten simultaneous purchases sell the product exactly once', async () => {
-    const id = await listProduct('Race', 30_00);
+    const id = await listProduct('Race', 3000);
 
     const attempts = await Promise.all(
       Array.from({ length: 10 }, () =>
@@ -315,9 +315,9 @@ describe('atomicity', () => {
   });
 
   it('simultaneous accepts on two threads reserve for exactly one buyer', async () => {
-    const id = await listProduct('Accept Race', 60_00);
-    const fromBob = await offer(session.bob.token, id, 50_00);
-    const fromCarol = await offer(session.carol.token, id, 55_00);
+    const id = await listProduct('Accept Race', 6000);
+    const fromBob = await offer(session.bob.token, id, 5000);
+    const fromCarol = await offer(session.carol.token, id, 5500);
 
     const attempts = await Promise.all([
       call('POST', `/api/offers/${fromBob.body.id}/accept`, { token: session.alice.token }),
@@ -334,9 +334,9 @@ describe('atomicity', () => {
   });
 
   it('a purchase racing an accept leaves one of the two legal states, never a mixture', async () => {
-    const id = await listProduct('Cross Race', 40_00);
+    const id = await listProduct('Cross Race', 4000);
     // Bob negotiates, so Carol is the only one who can still buy it outright.
-    const fromBob = await offer(session.bob.token, id, 35_00);
+    const fromBob = await offer(session.bob.token, id, 3500);
 
     const [purchase, accept] = await Promise.all([
       call('POST', `/api/products/${id}/purchase`, { token: session.carol.token }),
@@ -349,8 +349,8 @@ describe('atomicity', () => {
     // Sold to Carol at the listed price, or reserved for Bob at his — and the winner says which.
     expect(detail.body).toMatchObject(
       purchase.status === 200
-        ? { status: 'Sold', buyerId: session.carol.user.id, finalPriceCents: 40_00 }
-        : { status: 'Reserved', buyerId: session.bob.user.id, finalPriceCents: 35_00 },
+        ? { status: 'Sold', buyerId: session.carol.user.id, finalPriceCents: 4000 }
+        : { status: 'Reserved', buyerId: session.bob.user.id, finalPriceCents: 3500 },
     );
   });
 });
