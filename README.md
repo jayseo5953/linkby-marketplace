@@ -8,7 +8,8 @@ price through counter-offers until one side accepts.
 **Docker** with Compose v2 — `docker compose version` should print v2.x. That is the only
 requirement to run the app: no Node, Postgres or object storage to install.
 
-Node 22 or later is needed only if you want to run the test suites from your own shell.
+The test suites run inside the containers too. Node is needed only to type `npm test` rather than the
+`docker compose exec` command it stands for.
 
 ## Start from a clean state
 
@@ -72,10 +73,12 @@ shows two independent threads interleaved in one chronological history.
 ## Running the tests
 
 ```bash
-npm install                            # once, for the workspace
-npm test                               # 68 unit tests, no running stack needed
-npm run test:smoke -w @linkby/api      # 22 HTTP tests, requires `docker compose up`
+npm test                               # 68 unit tests
+npm run test:smoke                     # 22 HTTP tests
 ```
+
+Both run inside the containers, so nothing is installed on your machine and both need
+`docker compose up` already running.
 
 The smoke suite exercises the real API against the running database, including three concurrency
 races. It writes to that database, so run it before relying on the seeded rows, or reset afterwards.

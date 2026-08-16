@@ -61,11 +61,11 @@ services:
     command: npm run db:migrate
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-    volumes:
-      - ./apps/api:/app/apps/api
-      # The schema imports the shared enums, so a stale baked-in copy would migrate to
-      # the wrong values.
-      - ./packages/shared:/app/packages/shared
+    # volumes:
+    #   - ./apps/api:/app/apps/api
+    #   # The schema imports the shared enums, so a stale baked-in copy would migrate to
+    #   # the wrong values.
+    #   - ./packages/shared:/app/packages/shared
     depends_on:
       db:
         condition: service_healthy
@@ -91,9 +91,9 @@ services:
       S3_BUCKET: ${S3_BUCKET}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
-    volumes:
-      - ./apps/api:/app/apps/api
-      - ./packages/shared:/app/packages/shared
+    # volumes:
+    #   - ./apps/api:/app/apps/api
+    #   - ./packages/shared:/app/packages/shared
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -119,9 +119,10 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
     ports:
       - '3000:3000'
-    volumes:
-      - ./apps/api:/app/apps/api
-      - ./packages/shared:/app/packages/shared
+    # Uncomment for hot reload — the dev command is already tsx watch.
+    # volumes:
+    #   - ./apps/api:/app/apps/api
+    #   - ./packages/shared:/app/packages/shared
     depends_on:
       db:
         condition: service_healthy
@@ -140,11 +141,14 @@ services:
       VITE_API_URL: ${VITE_API_URL}
     ports:
       - '5173:5173'
-    volumes:
-      # Whole directories, never single files — editors replace a file's inode on save
-      # and a single-file bind mount keeps pointing at the old one.
-      - ./apps/web:/app/apps/web
-      - ./packages/shared:/app/packages/shared
+    # Uncomment for hot reload.
+    # volumes:
+    #   # Whole directories, never single files — editors replace a file's inode on save
+    #   # and a single-file bind mount keeps pointing at the old one.
+    #   - ./apps/web:/app/apps/web
+    #   # Keeps the image's react and react-router, which npm nests here and the mount above would hide.
+    #   - /app/apps/web/node_modules
+    #   - ./packages/shared:/app/packages/shared
     depends_on:
       - api
 

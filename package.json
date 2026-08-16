@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "docker compose up",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "docker compose exec web npm run test && docker compose exec api npm run test",
+    "test:smoke": "docker compose exec api sh -c 'SMOKE_DATABASE_URL=$DATABASE_URL npm run test:smoke'"
   },
   "engines": {
     "node": ">=22"
