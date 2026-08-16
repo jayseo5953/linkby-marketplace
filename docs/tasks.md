@@ -854,7 +854,9 @@ but each item is individually droppable without breaking the product.
 ## LM-17 · README with setup and seeded credentials
 
 **Priority:** P1 · **Estimate:** 1.5h · **Depends on:** LM-16
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-16 — instructions followed literally against a
+`docker compose down -v` clean state, then the five-minute walkthrough driven in the browser across
+Bob, Carol and Alice.
 
 > As a reviewer, I want one document that gets me from clone to working app, so that I can evaluate the submission
 > without asking questions (§7).
