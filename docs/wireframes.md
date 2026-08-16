@@ -104,7 +104,7 @@ Terminology used throughout:
 |  |  Vintage Camera    |  |  Desk Lamp         |  |  Road Bike         |      |
 |  |  $250.00           |  |  $40.00            |  |  $900.00           |      |
 |  |  Seller: alice     |  |  Seller: bob       |  |  Seller: carol     |      |
-|  |        [AVAILABLE] |  |        [RESERVED]  |  |          [ SOLD ]  |      |
+|  | [YOURS][AVAILABLE] |  |        [RESERVED]  |  |          [ SOLD ]  |      |
 |  +--------------------+  +--------------------+  +--------------------+      |
 |                                                                              |
 |  +--------------------+  +--------------------+                              |
@@ -133,13 +133,16 @@ Terminology used throughout:
 | Card image | First uploaded image; a parcel icon on a neutral block if the product has none | — |
 | Card name / price / seller | Static. Price is the **listed** price, never the negotiated one. The name is one line, ellipsed when it overflows, with the full text on hover | — |
 | Card status badge (bottom-right) | Text badge | — |
+| `Your listing` badge | A shop icon and the words, left of the status badge, only on products the viewer sells | — |
 
 **Visibility / enablement**
 
 - Status badge is rendered on every card, including `Available`, so the state is always stated
   outright rather than inferred from an absence. Weight tracks how settled the state is: an outlined
   badge for `Available`, a filled grey one for `Reserved`, a solid one for `Sold`.
-- Cards for products the viewer sells look identical to everyone else's; role only affects Details.
+- A card for a product the viewer sells carries a `Your listing` badge beside its status, so a seller
+  can pick their own listings out of the grid without opening them. Nothing else about the card
+  changes; role still only affects what can be done on Details.
 - No pagination (§3.2). Ordering is not a core concern — it folds into the status-filter bonus
   (A9, deferred; §9.1). `Sold` and `Reserved` cards are neither hidden nor sunk to the bottom.
 
@@ -291,28 +294,33 @@ treatment ruled on by the product owner is a **modal**, deferred to bonus scope 
 | Linkby Marketplace                    [ Sell ]  [ Logout ]   alice@example.com|
 +==============================================================================+
 |  < Back to products                                                          |
-|                                                                              |
-|  Vintage Camera                                     Status: AVAILABLE        |
-|  Listed price: $250.00                                                       |
-|  Seller: bob                        (or:  You are the seller of this item.)  |
-|                                                                              |
-|  1970s rangefinder, fully serviced. Light meter works. Minor brassing on the  |
-|  top plate.                                                                  |
-|                                                                              |
-|  +---------+ +---------+ +---------+                                         |
-|  | [img 1] | | [img 2] | | [img 3] |   (every image, three to a row)         |
-|  +---------+ +---------+ +---------+                                         |
-|                                                                              |
-|  --- ACTION BAR (contents vary by state — see 4.3) -----------------------   |
-|  [  Purchase  ]   [  Counter Offer  ]                                        |
-|                                                                              |
-|  --- NEGOTIATION HISTORY (present only when ≥1 offer exists — see §5) ----    |
-|                                                                              |
+|                                                  +-------------------------+ |
+|  (shop) This is your listing.   (own product)    |                         | |
+|                                                  |                         | |
+|  Vintage Camera               Status: AVAILABLE  |  ACTION PANEL           | |
+|  Listed price: $250.00                           |  (varies — see 4.3)     | |
+|  Seller: bob                                     |  [ Purchase — $250.00 ] | |
+|                                                  |  [ Counter Offer      ] | |
+|  1970s rangefinder, fully serviced. Light meter  +-------------------------+ |
+|  works. Minor brassing on the top plate.         |  NEGOTIATION HISTORY    | |
+|                                                  |  (only when ≥1 offer    | |
+|  +---------+ +---------+ +---------+             |   exists — see §5)      | |
+|  | [img 1] | | [img 2] | | [img 3] |             |                         | |
+|  +---------+ +---------+ +---------+             +-------------------------+ |
 +==============================================================================+
 ```
 
 **Purpose:** show one listing in full and expose exactly the actions this viewer is allowed to take
 on it right now.
+
+**Layout.** Two columns from `lg` up: the listing itself on the left, and a right-hand panel holding
+every actionable control — the action buttons, and the negotiation history with its inline controls
+beneath them. The panel is sticky, so no action is ever hidden below the scroll. Below `lg` the panel
+wraps underneath the listing, full width, and the page reads as one column.
+
+The panel renders only when it would hold something. When a viewer has no actions and there is no
+history — a seller looking at an untouched listing, or anyone looking at a sold one — the listing
+takes the full width instead of sitting beside an empty column.
 
 **Always-present elements**
 
@@ -320,7 +328,9 @@ on it right now.
 | --- | --- | --- |
 | `< Back to products` | Plain back link | Product List |
 | Name / status / listed price / description | Static display (§3.4) | — |
-| Seller line | Shows seller name, or the "you are the seller" note when viewer owns it | — |
+| Seller line | Always the seller's name | — |
+| `This is your listing.` banner | Above the title, only when the viewer sells this product. Carries the same shop icon as the card's badge | — |
+| `This product is no longer available.` banner | Above the title when the product is `Reserved` or `Sold`, except for the seller and except for the reserved buyer, who can still complete their purchase | — |
 | Images | Every image, three to a row (two below `sm`), each whole and uncropped | — |
 | An image | Clicking it opens that image's original, full size | New browser tab |
 
@@ -483,8 +493,12 @@ navigates to **Product List**.
 
 ## 5. Negotiation History (§3.4, embedded in Product Details)
 
-One chronological, cross-buyer table, visible to **everyone** who can see the product — seller and
+One chronological, cross-buyer list, visible to **everyone** who can see the product — seller and
 every buyer, not just thread participants (§3.4).
+
+It lives inside the right-hand action panel (§4.1), beneath the action buttons, so every control a
+viewer can use sits in one column. The sketches below are drawn as a wide table to show the columns
+and the per-row rules; how a row is laid out in a narrow panel is settled when the history is built.
 
 ### 5.1 Row spec (DECIDED, A4)
 
@@ -697,36 +711,46 @@ Core scope is refresh-driven with no real-time updates (§4.1), so a viewer's pa
 stale. Every mutating action can therefore fail on the server's guarded update (§2.3). This is a
 normal, expected outcome, not an exceptional error, and it needs a real UI.
 
-**Presentation:** the action fails, the page re-fetches and re-renders in its new state, and a banner
-explains what changed. The user is never navigated away on a conflict — they stay on Product Details
-and see the corrected reality.
+**Presentation:** the action fails, the page re-fetches and re-renders in its new state, and a toast
+reports that the action did not take effect. The user is never navigated away on a conflict — they
+stay on Product Details and see the corrected reality.
+
+The refreshed page *is* the explanation: the status reads `RESERVED` or `SOLD` and the controls the
+viewer may no longer use are simply gone, exactly as they would be on a first visit. So the toast
+carries only the one thing the page cannot say for itself — that the click did nothing — and then
+disappears. No persistent banner, and nothing to dismiss.
 
 ```
 +==============================================================================+
+|                    +-----------------------------------------+              |
+|                    | (x) This product is no longer available |              |
+|                    |     Your purchase was not completed.    |              |
+|                    +-----------------------------------------+              |
 |  < Back to products                                                          |
 |                                                                              |
-|  (!) Someone else reserved this product first. Your purchase was not         |
-|      completed. Nothing was charged.                                  [ x ]  |
-|                                                                              |
-|  Vintage Camera                                     Status: RESERVED         |
+|  Vintage Camera                                     Status: SOLD             |
 |  Listed price: $250.00        Seller: bob                                    |
-|  (i) This product is reserved for another buyer.                             |
 |  ...                                                                         |
-|  (no action buttons — page has re-rendered as PD-B6)                         |
+|  (no action panel — page has re-rendered as PD-B7)                           |
 ```
 
 **Conflict messages by attempted action**
 
-| Attempted | Actual server state | Message |
+The refusal the server gives is the toast's first line; the second line is fixed per action and states
+that nothing happened.
+
+| Attempted | Actual server state | Toast |
 | --- | --- | --- |
-| Purchase | now `Reserved` for someone else | `Someone else reserved this product first. Your purchase was not completed.` |
-| Purchase | now `Sold` | `This product has already been sold.` |
-| Accept (by the **seller**) | product now `Reserved` — the seller's counter in another thread was accepted first | `Another offer was accepted first. This product is no longer available.` |
-| Accept (by a **buyer**) | product now `Reserved` for a different buyer — a rival buyer accepted the seller's counter first | `Another buyer just reserved this product. Your acceptance was not applied.` |
-| Accept | product now `Sold` | `This product has already been sold.` |
-| Counter | product now `Reserved` / `Sold` | `This product is no longer open for offers. Your offer was not sent.` |
-| Counter / Accept | the other side already responded — the row is no longer the latest in its thread | `That offer has already been responded to. Your action was not applied.` |
+| Purchase | now `Reserved` or `Sold` | `This product is no longer available` / `Your purchase was not completed.` |
+| Purchase | viewer opened a negotiation elsewhere in the meantime | `Settle your open negotiation on this product before buying it` / `Your purchase was not completed.` |
+| Accept | product now `Reserved` or `Sold` | `This product is no longer available` / `Your acceptance was not applied.` |
+| Counter | product now `Reserved` / `Sold` | `This product is no longer available` / `Your offer was not sent.` |
+| Counter / Accept | the other side already responded — the row is no longer the latest in its thread | `That offer has already been responded to` / `Your action was not applied.` |
+| Any | the request never reached the server | `Couldn't reach the server…` / `Your … was not completed.` |
 | Any | viewer's session expired | Redirect to **Login** |
+
+Which of `Reserved` and `Sold` occurred is deliberately *not* spelled out in the message: the status
+badge on the refreshed page below it already says which, so a second wording would only repeat it.
 
 Every message states explicitly that the action did **not** take effect — the top UX risk here is a
 buyer believing they bought something they did not.

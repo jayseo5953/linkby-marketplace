@@ -550,44 +550,51 @@ their negotiation or give up on the product. QA re-run: 47 checks.
 ## LM-12 · Purchase button behaviour in the UI
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-10, LM-11
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-15 — all 10 steps, three viewers, at 1280px and 375px.
 
 > As a buyer, I want a Purchase button that appears exactly when I am actually allowed to buy, so that I am never
 > offered an action that will fail (§3.4).
 
 **Acceptance criteria**
 
-- [ ] Visible and enabled when the product is `Available` and the viewer is a buyer with no open negotiation on it.
-- [ ] Visible and enabled when the product is `Reserved` **for this viewer**.
-- [ ] Hidden for the seller, always.
-- [ ] Hidden once the product is `Sold`, for everyone.
-- [ ] Hidden for a buyer who has an open, not-yet-accepted negotiation on this product.
-- [ ] Hidden for every buyer except the reserved one once the product is `Reserved`.
-- [ ] **Stated rule, not an inference:** once the product is `Reserved` or `Sold`, **no control on this screen is
+- [x] Visible and enabled when the product is `Available` and the viewer is a buyer with no open negotiation on it.
+- [x] Visible and enabled when the product is `Reserved` **for this viewer**, labelled with the accepted price.
+- [x] Hidden for the seller, always.
+- [x] Hidden once the product is `Sold`, for everyone.
+- [x] Hidden for a buyer who has an open, not-yet-accepted negotiation on this product.
+- [x] Hidden for every buyer except the reserved one once the product is `Reserved`.
+- [x] **Stated rule, not an inference:** once the product is `Reserved` or `Sold`, **no control on this screen is
       actionable by anyone except the reserved buyer** — and for the reserved buyer the only remaining action is
       completing the purchase. This governs the whole detail screen, not just the Purchase
       button; the history controls in LM-16 follow the same rule.
-- [ ] Clicking it sets the product to `Sold` and navigates back to the Product List, where the card now shows a
+- [x] Clicking it sets the product to `Sold` and navigates back to the Product List, where the card now shows a
       `Sold` indicator.
-- [ ] If the purchase is refused server-side (someone else bought first), the user sees an error and the screen
+- [x] If the purchase is refused server-side (someone else bought first), the user sees an error and the screen
       reflects real current state after refresh — no silent failure.
+- [x] The button, and the history controls when they arrive, live in the sticky right-hand panel of §4.1.
 
-**QA steps** — *browser, two users*
+**QA steps** — *browser, three viewers*
 
-Use a normal window for **Alice (seller)** and an **incognito window** for **Bob (buyer)**.
+Use the seeded products: **3** (Bob's, `Available`), **8** (`Reserved` for Bob at $1,300 against a $1,450 listing),
+**4** (Bob has an open thread), **9** (`Sold`).
 
-1. Alice creates a product `QA Buy Me` (price 100). In her window, open its detail → **no Purchase button**.
-2. In incognito, log in as Bob, open the same product → **Purchase button visible**.
-3. Bob clicks **Purchase** → navigates back to Product List; the `QA Buy Me` card shows a `Sold` indicator.
-4. Bob reopens the detail screen → **no Purchase button** (Sold).
-5. In Alice's window, reload the Product List → card also shows `Sold`.
-6. Reserved-for-me case: Alice lists `QA Reserve Me`; run a negotiation to acceptance with Bob (LM-13/LM-14), then:
-   - Bob's detail screen → **Purchase button visible**.
-   - Log Bob out in incognito, log in as **Carol**, open the same product → **no Purchase button**.
-   - Alice's window → **no Purchase button**.
-   - Bob logs back in and clicks **Purchase** → back on Product List, card shows `Sold`.
-7. Negotiation-in-progress case: Alice lists `QA Negotiating`; Bob opens a counter offer on it (LM-16), then Bob's
-   detail screen → **no Purchase button**. Carol, in her own session, still sees one (she has no thread yet).
+1. As Alice, open product 3 → **Purchase — $420.00** in the right-hand panel, listing on the left.
+2. Click it → back on the Product List with the card showing `Sold`; SQL confirms one `Sold` row with Alice as
+   buyer. Restore the row afterwards.
+3. Reopen product 3 → **no panel at all**, and the listing spans the full width.
+4. As Bob, open product 8 → **Purchase — $1,300.00**, while the listed price still reads $1,450.00.
+5. As Carol (who has a losing thread on 8), open product 8 → **no panel**. As Alice (the seller) → **no panel**.
+6. As Bob, open product 4 → **no panel** (his negotiation is open). Open product 7, where he has no thread →
+   **Purchase** visible.
+7. Conflict: load product 3 as Alice, then buy it from another session
+   (`curl -X POST .../api/products/3/purchase -H "Authorization: Bearer $TOKEN_CAROL"`), then click Purchase →
+   stays on the page, toast reads `This product is no longer available` / `Your purchase was not completed.`, and
+   the page re-renders as `Sold` with no panel.
+8. Throttle to Slow 3G and double-click Purchase → the button reads `Working…` and is disabled; SQL shows exactly
+   one sale.
+9. Make the POST fail at the network level and click Purchase → toast reads `Couldn't reach the server to buy this
+   product`, the product is untouched, and the button returns to normal.
+10. At a 375px viewport → the panel wraps below the listing at full width, no horizontal scroll.
 
 ---
 

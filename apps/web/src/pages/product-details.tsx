@@ -1,9 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CircleAlert } from 'lucide-react';
-import { Link, useParams } from 'react-router';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Ban, CircleAlert, Store } from 'lucide-react';
+import { useRef } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
+import { toast } from 'sonner';
 import * as productsApi from '@/api/products';
+import { hasActions, ProductActionPanel } from '@/components/products/product-action-panel';
 import { ProductImages } from '@/components/products/product-images';
 import { ProductStatusBadge } from '@/components/products/product-status-badge';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { formatPrice } from '@/lib/format';
@@ -13,14 +17,33 @@ import { ROUTES } from '@/lib/routes';
 export function ProductDetailsPage() {
   const { id } = useParams();
   const { session } = useAuth();
+  const navigate = useNavigate();
 
   const productId = Number(id);
   const idIsUsable = Number.isInteger(productId) && productId > 0;
+  // Set synchronously: a double-click fires twice before `isPending` has re-rendered the button.
+  const inFlight = useRef(false);
 
   const product = useQuery({
     queryKey: ['product', productId],
     queryFn: () => productsApi.getProduct(productId),
     enabled: idIsUsable,
+  });
+
+  const purchase = useMutation({
+    mutationFn: () => productsApi.purchaseProduct(productId),
+    onSuccess: () => navigate(ROUTES.products),
+    // The refetch re-renders the screen as it truly is now, so the toast only has to say the click did nothing.
+    onError: (error) => {
+      toast.error(
+        error instanceof ApiError ? error.message : "Couldn't reach the server to buy this product",
+        { description: 'Your purchase was not completed.' },
+      );
+      void product.refetch();
+    },
+    onSettled: () => {
+      inFlight.current = false;
+    },
   });
 
   const isMissing =
@@ -57,6 +80,9 @@ export function ProductDetailsPage() {
 
   const { name, status, priceCents, description, seller, imageUrls } = product.data;
   const viewerIsSeller = session?.user.id === seller.id;
+  // The reserved buyer is the exception: the product is closed to everyone but them, and they can still buy.
+  const isClosedToViewer =
+    status !== 'Available' && !viewerIsSeller && !product.data.viewer.canPurchase;
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,20 +94,49 @@ export function ProductDetailsPage() {
         Back to products
       </Link>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-xl font-medium">{name}</h1>
-          <ProductStatusBadge status={status} />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div
+          className={`flex flex-col gap-6 ${hasActions(product.data) ? 'lg:col-span-2' : 'lg:col-span-3'}`}
+        >
+          <div className="flex flex-col gap-2">
+            {viewerIsSeller && (
+              <Alert>
+                <Store />
+                <AlertTitle>This is your listing.</AlertTitle>
+              </Alert>
+            )}
+
+            {isClosedToViewer && (
+              <Alert>
+                <Ban />
+                <AlertTitle>This product is no longer available.</AlertTitle>
+              </Alert>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h1 className="text-xl font-medium">{name}</h1>
+              <ProductStatusBadge status={status} />
+            </div>
+            <p className="font-medium">Listed price: {formatPrice(priceCents)}</p>
+            <p className="text-muted-foreground text-sm">Seller: {seller.displayName}</p>
+          </div>
+
+          <p className="whitespace-pre-line">{description}</p>
+
+          <ProductImages name={name} imageUrls={imageUrls} />
         </div>
-        <p className="font-medium">Listed price: {formatPrice(priceCents)}</p>
-        <p className="text-muted-foreground text-sm">
-          {viewerIsSeller ? 'You are the seller of this item.' : `Seller: ${seller.displayName}`}
-        </p>
+
+        <ProductActionPanel
+          product={product.data}
+          isWorking={purchase.isPending}
+          onPurchase={() => {
+            if (inFlight.current) return;
+
+            inFlight.current = true;
+            purchase.mutate();
+          }}
+        />
       </div>
-
-      <p className="whitespace-pre-line">{description}</p>
-
-      <ProductImages name={name} imageUrls={imageUrls} />
     </div>
   );
 }

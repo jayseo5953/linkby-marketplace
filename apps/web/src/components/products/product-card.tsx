@@ -1,12 +1,17 @@
 import type { ProductListItemResponse } from '@linkby/shared';
-import { Package } from 'lucide-react';
+import { Package, Store } from 'lucide-react';
 import { Link } from 'react-router';
 import { ProductStatusBadge } from '@/components/products/product-status-badge';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/hooks/use-auth';
 import { formatPrice } from '@/lib/format';
 import { productDetailPath } from '@/lib/routes';
 
 export function ProductCard({ product }: { product: ProductListItemResponse }) {
+  const { session } = useAuth();
+  const viewerIsSeller = session?.user.id === product.seller.id;
+
   return (
     <Link to={productDetailPath(product.id)} className="block rounded-xl">
       <Card className="h-full pt-0 transition hover:ring-foreground/25">
@@ -26,7 +31,13 @@ export function ProductCard({ product }: { product: ProductListItemResponse }) {
           <p className="text-muted-foreground">Seller: {product.seller.displayName}</p>
         </CardContent>
 
-        <CardFooter className="mt-auto justify-end">
+        <CardFooter className="mt-auto justify-end gap-2">
+          {viewerIsSeller && (
+            <Badge variant="secondary">
+              <Store />
+              Your listing
+            </Badge>
+          )}
           <ProductStatusBadge status={product.status} />
         </CardFooter>
       </Card>

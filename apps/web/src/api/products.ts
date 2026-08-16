@@ -18,6 +18,12 @@ export async function getProduct(id: number): Promise<ProductDetailResponse> {
   return authedRequest(`/api/products/${id}`, productDetailResponseSchema);
 }
 
+export async function purchaseProduct(id: number): Promise<ProductDetailResponse> {
+  return authedRequest(`/api/products/${id}/purchase`, productDetailResponseSchema, {
+    method: 'POST',
+  });
+}
+
 export async function createProduct(
   product: CreateProductRequest,
   images: File[],

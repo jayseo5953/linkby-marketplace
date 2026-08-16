@@ -1,5 +1,6 @@
 import { Link, Outlet } from 'react-router';
 import { Button } from '@/components/ui/button';
+import { Toaster } from '@/components/ui/sonner';
 import { useAuth } from '@/hooks/use-auth';
 import { ROUTES } from '@/lib/routes';
 
@@ -28,6 +29,7 @@ export function AppLayout() {
       <main className="mx-auto max-w-5xl px-4 py-6">
         <Outlet />
       </main>
+      <Toaster position="top-center" />
     </div>
   );
 }
