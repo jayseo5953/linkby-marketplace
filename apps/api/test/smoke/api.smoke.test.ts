@@ -354,3 +354,118 @@ describe('atomicity', () => {
     );
   });
 });
+
+// Two writes contending for one product row; each case asserts the loser is refused, not merged.
+describe('concurrency locking', () => {
+  it('two simultaneous opening offers leave one offer on the thread', async () => {
+    const id = await listProduct('Offer Race', 5000);
+
+    const attempts = await Promise.all([
+      offer(session.bob.token, id, 4000),
+      offer(session.bob.token, id, 4200),
+    ]);
+
+    expect(attempts.filter((attempt) => attempt.status === 201)).toHaveLength(1);
+    expect(attempts.filter((attempt) => attempt.status === 409)).toHaveLength(1);
+    expect(attempts.map((attempt) => attempt.body.error?.code).filter(Boolean)).toEqual([
+      'THREAD_ALREADY_OPEN',
+    ]);
+
+    const history = await call('GET', `/api/products/${id}/offers`, { token: session.bob.token });
+    expect(history.body).toHaveLength(1);
+  });
+
+  it('two simultaneous counters answer the same offer only once', async () => {
+    const id = await listProduct('Counter Race', 5000);
+    const opened = await offer(session.bob.token, id, 4000);
+
+    const attempts = await Promise.all([
+      offer(session.alice.token, id, 4500, opened.body.id),
+      offer(session.alice.token, id, 4700, opened.body.id),
+    ]);
+
+    expect(attempts.filter((attempt) => attempt.status === 201)).toHaveLength(1);
+    expect(attempts.filter((attempt) => attempt.status === 409)).toHaveLength(1);
+    expect(attempts.map((attempt) => attempt.body.error?.code).filter(Boolean)).toEqual([
+      'OFFER_SUPERSEDED',
+    ]);
+
+    const history = await call('GET', `/api/products/${id}/offers`, { token: session.bob.token });
+    expect(history.body).toHaveLength(2);
+    expect(history.body.filter((row: HistoryRow) => row.isLatestInThread)).toHaveLength(1);
+  });
+
+  it('two buyers purchasing at once sell to exactly one of them', async () => {
+    const id = await listProduct('Two Buyers', 3000);
+
+    const attempts = await Promise.all([
+      call('POST', `/api/products/${id}/purchase`, { token: session.bob.token }),
+      call('POST', `/api/products/${id}/purchase`, { token: session.carol.token }),
+    ]);
+
+    expect(attempts.filter((attempt) => attempt.status === 200)).toHaveLength(1);
+    expect(attempts.filter((attempt) => attempt.status === 409)).toHaveLength(1);
+
+    const detail = await call('GET', `/api/products/${id}`, { token: session.alice.token });
+    expect(detail.body.status).toBe('Sold');
+    expect([session.bob.user.id, session.carol.user.id]).toContain(detail.body.buyerId);
+  });
+
+  it('two simultaneous accepts of the same offer reserve it once', async () => {
+    const id = await listProduct('Double Accept', 6000);
+    const opened = await offer(session.bob.token, id, 5000);
+
+    const attempts = await Promise.all([
+      call('POST', `/api/offers/${opened.body.id}/accept`, { token: session.alice.token }),
+      call('POST', `/api/offers/${opened.body.id}/accept`, { token: session.alice.token }),
+    ]);
+
+    expect(attempts.filter((attempt) => attempt.status === 200)).toHaveLength(1);
+    expect(attempts.filter((attempt) => attempt.status === 409)).toHaveLength(1);
+
+    const detail = await call('GET', `/api/products/${id}`, { token: session.alice.token });
+    expect(detail.body).toMatchObject({
+      status: 'Reserved',
+      buyerId: session.bob.user.id,
+      finalPriceCents: 5000,
+    });
+  });
+
+  it('accepting and countering the same offer at once settles it one way', async () => {
+    const id = await listProduct('Answer Race', 8000);
+    const opened = await offer(session.bob.token, id, 6000);
+    const countered = await offer(session.alice.token, id, 7000, opened.body.id);
+
+    // Both are legal answers by Bob to the same offer, so the lock has to pick one.
+    const [accept, counter] = await Promise.all([
+      call('POST', `/api/offers/${countered.body.id}/accept`, { token: session.bob.token }),
+      offer(session.bob.token, id, 6500, countered.body.id),
+    ]);
+
+    expect([accept.status === 200, counter.status === 201].filter(Boolean)).toHaveLength(1);
+
+    const detail = await call('GET', `/api/products/${id}`, { token: session.alice.token });
+    expect(detail.body.status).toBe(accept.status === 200 ? 'Reserved' : 'Available');
+  });
+
+  it('a reserved product stays with its buyer when an outsider buys at the same moment', async () => {
+    const id = await listProduct('Reserved Gate', 7000);
+    const opened = await offer(session.bob.token, id, 6000);
+    await call('POST', `/api/offers/${opened.body.id}/accept`, { token: session.alice.token });
+
+    const [reserved, outsider] = await Promise.all([
+      call('POST', `/api/products/${id}/purchase`, { token: session.bob.token }),
+      call('POST', `/api/products/${id}/purchase`, { token: session.carol.token }),
+    ]);
+
+    expect(reserved.status).toBe(200);
+    expect(outsider.status).toBe(409);
+
+    const detail = await call('GET', `/api/products/${id}`, { token: session.alice.token });
+    expect(detail.body).toMatchObject({
+      status: 'Sold',
+      buyerId: session.bob.user.id,
+      finalPriceCents: 6000,
+    });
+  });
+});
