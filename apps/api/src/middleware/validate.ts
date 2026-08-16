@@ -4,9 +4,17 @@ import type { RequestHandler } from 'express';
 import type { ZodType } from 'zod';
 
 // The schema's output type becomes the route's body type, so a mismatched schema fails to compile.
-export function validate<T>(schema: ZodType<T>): RequestHandler<Record<string, string>, unknown, T> {
+// `rejection` replaces the per-field ZodError where naming the bad field would tell the caller
+// something it should not learn.
+export function validate<T>(
+  schema: ZodType<T>,
+  rejection?: () => Error,
+): RequestHandler<Record<string, string>, unknown, T> {
   return (req, _res, next) => {
-    req.body = schema.parse(req.body);
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) throw rejection === undefined ? parsed.error : rejection();
+
+    req.body = parsed.data;
     next();
   };
 }
