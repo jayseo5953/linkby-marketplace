@@ -1,6 +1,7 @@
 import cors from 'cors';
-import express from 'express';
+import express, { type Request } from 'express';
 import { config } from './config';
+import { NotFoundError } from './lib/errors';
 import { errorHandler } from './middleware/error';
 import { authRouter } from './routes/auth';
 import { healthRouter } from './routes/health';
@@ -15,6 +16,11 @@ app.use(healthRouter);
 app.use(authRouter);
 app.use(productRouter);
 app.use(offerRouter);
+
+// Without this, an unmatched path gets Express's HTML page instead of the API's error envelope.
+app.use((req: Request) => {
+  throw new NotFoundError(`No route for ${req.method} ${req.path}`);
+});
 
 // Must stay last to capture errors from preceding middleware.
 app.use(errorHandler);
