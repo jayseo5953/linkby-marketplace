@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import bcrypt from 'bcryptjs';
 import { eq, sql } from 'drizzle-orm';
 import { logger } from '../../lib/logger';
@@ -11,7 +12,6 @@ import {
   users as userFixtures,
   type UserHandle,
 } from './fixtures';
-import { svgFor } from './image';
 
 /** Turns a missing lookup into a named failure rather than a null the schema rejects later. */
 function must<T>(value: T | undefined, message: string): T {
@@ -19,9 +19,10 @@ function must<T>(value: T | undefined, message: string): T {
   return value;
 }
 
-async function uploadImage(name: string, index: number, total: number): Promise<string> {
-  const key = `products/${randomUUID()}.svg`;
-  await putObject(key, svgFor(name, index, total), 'image/svg+xml');
+async function uploadPhoto(fileName: string): Promise<string> {
+  const body = await readFile(new URL(`./photos/${fileName}`, import.meta.url));
+  const key = `products/${randomUUID()}.jpg`;
+  await putObject(key, body, 'image/jpeg');
   return key;
 }
 
@@ -89,16 +90,12 @@ async function main(): Promise<void> {
     ).id,
   }));
 
-  // Stage 3 — placeholder images, uploaded before their keys are written, so a row never
+  // Stage 3 — product photos, uploaded before their keys are written, so a row never
   // names an object that does not exist yet.
   const uploaded = await Promise.all(
     seeded.map(async ({ product, id }) => ({
       id,
-      keys: await Promise.all(
-        Array.from({ length: product.imageCount }, (_, index) =>
-          uploadImage(product.name, index, product.imageCount),
-        ),
-      ),
+      keys: await Promise.all(product.photos.map(uploadPhoto)),
     })),
   );
 
