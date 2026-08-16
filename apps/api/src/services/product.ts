@@ -6,12 +6,8 @@ import type {
   ProductResponse,
   SessionUser,
 } from '@linkby/shared';
-import { db, type Executor } from '../db/client';
-import {
-  type ProductEntity,
-  ProductPolicy,
-  PurchaseRefusal,
-} from '../domain/product-policy';
+import { db } from '../db/client';
+import { ProductPolicy, PurchaseRefusal } from '../domain/product-policy';
 import { ConflictError, NotFoundError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import * as offerRepo from '../repositories/offer.repo';
@@ -30,7 +26,6 @@ const EXTENSIONS: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
 };
-
 
 export async function createProduct(
   seller: SessionUser,
