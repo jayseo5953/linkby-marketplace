@@ -1282,3 +1282,51 @@ Normal window = **Alice (seller)**. Incognito = **Bob**.
 renumbered, so every cross-reference in this doc stays valid.)*
 
 
+---
+
+## LM-29 · Thumbnail derivatives so cards stop decoding full-size uploads
+
+**Priority:** P2 · **Estimate:** 2h · **Depends on:** LM-06, LM-09
+**Status:** Not started
+
+> As a buyer, I want the product grid to load quickly without losing the ability to inspect a photo closely, so
+> that browsing is fast and I can still judge an item's condition before offering on it.
+
+The 5MB upload cap bounds file size, not pixel count — a 6000×4000 phone photo compresses to about 3MB and
+passes. Decode cost tracks pixels, so that image expands to roughly 96MB of bitmap to fill a 343px-wide card,
+and the browser discards almost all of it. The original must be kept: buyers enlarge photos to check grain,
+wear and damage, so downscaling in place would remove the reason the images are there.
+
+**Acceptance criteria**
+
+- [ ] Each uploaded image is stored **twice** — the original exactly as received, plus a derivative downscaled to
+      800px on its long edge. Images already smaller than that are copied, not upscaled.
+- [ ] The original is byte-identical to what was uploaded. Nothing re-encodes or strips it.
+- [ ] The Product List card and the Product Details thumbnails request the **derivative**; enlarging an image on
+      the detail screen requests the **original**.
+- [ ] `image_keys` carries both keys per image, and the API response distinguishes the two so the browser never
+      guesses a key by string manipulation.
+- [ ] A failure to derive a thumbnail fails the whole create — a product is never left with originals and no
+      derivatives, or a partial set.
+- [ ] Existing products created before this ticket still render. Either backfill them or have the response fall
+      back to the original key when no derivative exists; state which in the decision log.
+
+**QA steps** — *curl + SQL, then browser*
+
+1. Create a product with one deliberately oversized image:
+   `python3 -c "from PIL import Image; Image.new('RGB',(6000,4000),'grey').save('/tmp/huge.jpg',quality=70)"` →
+   confirm it is under 5MB (`ls -lh /tmp/huge.jpg`), then
+   `curl -i -X POST http://localhost:3000/api/products -H "Authorization: Bearer $TOKEN_ALICE" -F 'name=QA Thumbs' -F 'priceCents=5000' -F 'description=qa' -F 'images=@/tmp/huge.jpg'` → `201`.
+2. `psql $DB -c "select image_keys from products where name='QA Thumbs';"` → two keys for the one image, one
+   original and one derivative.
+3. Fetch both from storage and compare: the derivative's long edge is 800px, the original is still 6000×4000
+   (`curl -s "$S3_PUBLIC_URL/<key>" | sips -g pixelWidth -g pixelHeight /dev/stdin`), and the original's byte
+   count matches `/tmp/huge.jpg` exactly.
+4. Small-image path: upload a 400×300 photo → the derivative is still 400×300, not upscaled.
+5. Browser: load the Product List with DevTools Network open → the `QA Thumbs` card requests the derivative key,
+   and the transferred size is a fraction of the original's.
+6. Browser: open Product Details and enlarge the image → *that* request is for the original key.
+7. Failure path: make the derivation step throw (temporarily), then POST → `500`-class error, and
+   `psql $DB -c "select count(*) from products where name='QA Thumb Fail';"` → `0`, with no orphaned objects
+   left in the bucket for that request.
+8. Pre-existing data: load a seeded product's card and detail screen → both still render.
