@@ -3,7 +3,8 @@ import { idParamsSchema } from '@linkby/shared';
 import type { RequestHandler } from 'express';
 import type { ZodType } from 'zod';
 
-export function validate(schema: ZodType): RequestHandler {
+// The schema's output type becomes the route's body type, so a mismatched schema fails to compile.
+export function validate<T>(schema: ZodType<T>): RequestHandler<Record<string, string>, unknown, T> {
   return (req, _res, next) => {
     req.body = schema.parse(req.body);
     next();
