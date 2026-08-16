@@ -347,6 +347,71 @@ describe('newestInThread', () => {
   });
 });
 
+describe('isNewestInThread', () => {
+  it('marks exactly one row per thread, whatever the order across threads', () => {
+    const bobs = thread(bob.id, 'buyer', 'seller');
+    const carols = thread(carol.id, 'buyer');
+    const policy = policyFor(alice, {}, [...bobs, ...carols]);
+
+    expect([...bobs, ...carols].map((offer) => policy.isNewestInThread(offer))).toEqual([
+      false,
+      true,
+      true,
+    ]);
+  });
+});
+
+// Gate numbering follows wireframes.md §5.5; the six turn cases are that section's Gate 3 table.
+describe('canRespondTo — §5.5 row controls', () => {
+  it('gate 1: freezes every row for every viewer once the product leaves Available', () => {
+    const offers = thread(bob.id, 'buyer');
+    const frozen = { status: 'Reserved', buyerId: bob.id } as const;
+
+    expect(policyFor(alice, frozen, offers).canRespondTo(offers[0]!)).toBe(false);
+    expect(policyFor(bob, frozen, offers).canRespondTo(offers[0]!)).toBe(false);
+    expect(policyFor(carol, frozen, offers).canRespondTo(offers[0]!)).toBe(false);
+  });
+
+  it('gate 2: refuses a row the newest on the page but not the newest in its thread', () => {
+    const bobs = thread(bob.id, 'buyer', 'seller');
+    const carols = thread(carol.id, 'buyer');
+    const policy = policyFor(alice, {}, [...bobs, carols[0]!]);
+
+    expect(policy.canRespondTo(bobs[0]!)).toBe(false);
+    expect(policy.canRespondTo(carols[0]!)).toBe(true);
+  });
+
+  it('gate 3: the seller may answer a buyer-made row', () => {
+    const offers = thread(bob.id, 'buyer');
+    expect(policyFor(alice, {}, offers).canRespondTo(offers[0]!)).toBe(true);
+  });
+
+  it('gate 3: the seller may not answer their own row', () => {
+    const offers = thread(bob.id, 'buyer', 'seller');
+    expect(policyFor(alice, {}, offers).canRespondTo(offers[1]!)).toBe(false);
+  });
+
+  it('gate 3: a buyer may answer a seller-made row in their own thread', () => {
+    const offers = thread(bob.id, 'buyer', 'seller');
+    expect(policyFor(bob, {}, offers).canRespondTo(offers[1]!)).toBe(true);
+  });
+
+  it('gate 3: a buyer may not answer a seller-made row in another thread', () => {
+    const offers = thread(bob.id, 'buyer', 'seller');
+    expect(policyFor(carol, {}, offers).canRespondTo(offers[1]!)).toBe(false);
+  });
+
+  it('gate 3: a buyer may not answer their own row', () => {
+    const offers = thread(bob.id, 'buyer');
+    expect(policyFor(bob, {}, offers).canRespondTo(offers[0]!)).toBe(false);
+  });
+
+  it('gate 3: a buyer may not answer another buyer-made row', () => {
+    const offers = thread(bob.id, 'buyer');
+    expect(policyFor(carol, {}, offers).canRespondTo(offers[0]!)).toBe(false);
+  });
+});
+
 describe('toViewer', () => {
   it('states the wire shape rather than exposing the instance', () => {
     expect(policyFor(bob, { priceCents: 4500 }).toViewer()).toEqual({

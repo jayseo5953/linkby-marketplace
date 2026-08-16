@@ -1,14 +1,22 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, getTableColumns } from 'drizzle-orm';
 import { db, type Executor } from '../db/client';
-import { offers } from '../db/schema';
+import { offers, users } from '../db/schema';
 import type { OfferEntity } from '../domain/product-policy';
 
-// Oldest first, which is the order the history renders in.
+export type OfferWithBuyer = OfferEntity & { buyerDisplayName: string };
+
+// Oldest first, which is the order the history renders in. The buyer's name is joined rather than
+// looked up per row, which is what keeps the feed off an N+1 (§5).
 export async function findByProduct(
   productId: number,
   exec: Executor = db,
-): Promise<OfferEntity[]> {
-  return exec.select().from(offers).where(eq(offers.productId, productId)).orderBy(asc(offers.id));
+): Promise<OfferWithBuyer[]> {
+  return exec
+    .select({ ...getTableColumns(offers), buyerDisplayName: users.displayName })
+    .from(offers)
+    .innerJoin(users, eq(users.id, offers.buyerId))
+    .where(eq(offers.productId, productId))
+    .orderBy(asc(offers.id));
 }
 
 export async function findById(id: number, exec: Executor = db): Promise<OfferEntity | undefined> {

@@ -40,6 +40,11 @@ productRouter.post(
   },
 );
 
+// Every thread, to every viewer (§3.4). The rows are the same for all of them; only the flags differ.
+productRouter.get('/api/products/:id/offers', authenticate, parseId, async (req, res) => {
+  res.status(200).json(await offerService.listOffers(req.user, req.id));
+});
+
 // Opening a thread and countering are one endpoint: to the caller it is the same act, and which
 // one it turns out to be depends on state they cannot see (T-58).
 productRouter.post(

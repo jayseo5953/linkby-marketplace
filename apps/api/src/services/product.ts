@@ -8,7 +8,6 @@ import type {
 } from '@linkby/shared';
 import { db, type Executor } from '../db/client';
 import {
-  type PolicyInput,
   type ProductEntity,
   ProductPolicy,
   PurchaseRefusal,
@@ -88,20 +87,12 @@ export async function listProducts(): Promise<ProductListItemResponse[]> {
   }));
 }
 
-/** The one place a policy input is assembled, so the read and the write cannot feed it differently. */
-export async function buildPolicyInput(
-  viewer: SessionUser,
-  product: ProductEntity,
-  exec: Executor = db,
-): Promise<PolicyInput> {
-  return { viewer, product, offers: await offerRepo.findByProduct(product.id, exec) };
-}
-
 export async function getProduct(viewer: SessionUser, id: number): Promise<ProductDetailResponse> {
   const row = await productRepo.findById(id);
   if (!row) throw new NotFoundError(`No product with id ${id}`);
 
-  const policy = new ProductPolicy(await buildPolicyInput(viewer, row));
+  const offers = await offerRepo.findByProduct(id);
+  const policy = new ProductPolicy({ viewer, product: row, offers });
   const { sellerId, imageKeys, createdAt, ...rest } = row;
 
   return {
@@ -120,7 +111,8 @@ export async function purchaseProduct(
     const product = await productRepo.lockById(id, tx);
     if (!product) throw new NotFoundError(`No product with id ${id}`);
 
-    const policy = new ProductPolicy(await buildPolicyInput(viewer, product, tx));
+    const offers = await offerRepo.findByProduct(id, tx);
+    const policy = new ProductPolicy({ viewer, product, offers });
     const refusal = policy.refusalToPurchase();
     if (refusal) throw new ConflictError(PURCHASE_MESSAGES[refusal], refusal);
 

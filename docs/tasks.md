@@ -667,26 +667,30 @@ no cap, and five concurrent two-buyer races each giving exactly one `200`, one `
 ## LM-15 · Negotiation history read model
 
 **Priority:** P0 · **Estimate:** 1h · **Depends on:** LM-13
-**Status:** Not started
+**Status:** Done · QA: 2026-08-15, 46/46 checks (script covers all seven steps below); unit suite 53 passing.
 
 > As any viewer of a product, I want the complete cross-buyer offer history in one chronological feed, so that the
 > history section can render for everyone, not just my own thread (§2.5, §3.4).
 
+**Revised 2026-08-15:** the feed is `GET /api/products/:id/offers`, not `/history` — the collection is
+already exposed at that path by the counter endpoint (T-68). Each row carries a single `canRespond`
+flag rather than separate Accept and Counter flags, since the two are one predicate (T-69).
+
 **Acceptance criteria**
 
-- [ ] Returns every offer across **all** threads on the product, in chronological order.
-- [ ] Each row carries: timestamp, buyer display name, `madeBy`, price, and its thread.
-- [ ] Each row is flagged with whether it is the latest offer in its thread.
-- [ ] Each row carries whether the **requesting viewer** may Accept and/or Counter it, per the §3.4 rules
+- [x] Returns every offer across **all** threads on the product, in chronological order.
+- [x] Each row carries: timestamp, buyer display name, `madeBy`, price, and its thread.
+- [x] Each row is flagged with whether it is the latest offer in its thread.
+- [x] Each row carries whether the **requesting viewer** may Accept and/or Counter it, per the §3.4 rules
       (latest in thread **and** it is that viewer's turn).
-- [ ] Returned to the seller and to every buyer alike — not restricted to the thread owner.
-- [ ] Fetched in a small constant number of queries regardless of thread/offer count — no N+1 (§5).
-- [ ] Empty history returns an empty result, not an error.
+- [x] Returned to the seller and to every buyer alike — not restricted to the thread owner.
+- [x] Fetched in a small constant number of queries regardless of thread/offer count — no N+1 (§5).
+- [x] Empty history returns an empty result, not an error.
 
 **QA steps** — *backend/curl*
 
 1. With Bob's and Carol's threads populated (LM-13):
-   `curl -s http://localhost:3000/api/products/<id>/history -H "Authorization: Bearer $TOKEN_ALICE" | jq` →
+   `curl -s http://localhost:3000/api/products/<id>/offers -H "Authorization: Bearer $TOKEN_ALICE" | jq` →
    all offers from both threads, ascending by timestamp, each with buyer name, `madeBy` and price.
 2. Same call with `$TOKEN_BOB` → **same rows** (history is public to all viewers), but the actionable flags differ:
    Bob may act only on the latest seller-made offer in *his* thread, never on Carol's rows.
@@ -694,7 +698,8 @@ no cap, and five concurrent two-buyer races each giving exactly one `200`, one `
 4. Cross-check the flags: exactly one row per thread is marked latest.
 5. After LM-14 acceptance, re-run for all three tokens → no row is marked actionable for anyone.
 6. Fresh product with no offers → `200` with an empty list.
-7. N+1 check: tail DB logs while calling once → constant query count, not one per offer.
+7. N+1 check: tail DB logs while calling once → constant query count, not one per offer. Products with 2, 3 and
+   5 offers all cost three statements (session lookup, product, offers joined to their buyers).
 
 ---
 

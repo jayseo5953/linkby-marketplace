@@ -67,7 +67,7 @@ export class ProductPolicy {
     return product.status === 'Reserved' && product.buyerId === viewer.id;
   }
 
-  private isNewestInThread(offer: OfferEntity): boolean {
+  isNewestInThread(offer: OfferEntity): boolean {
     return this.newestInThread(offer.buyerId)?.id === offer.id;
   }
 
@@ -125,6 +125,10 @@ export class ProductPolicy {
       [this.isNewestInThread(offer), RespondRefusal.Superseded],
       [this.sellerMayAnswer(offer) || this.buyerMayAnswer(offer), RespondRefusal.NotYourTurn],
     ]);
+  }
+
+  canRespondTo(offer: OfferEntity): boolean {
+    return this.refusalToRespond(offer) === null;
   }
 
   // Getters do not survive `JSON.stringify`, so the wire shape is stated rather than inherited.
