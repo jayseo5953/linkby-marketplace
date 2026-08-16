@@ -1,7 +1,7 @@
 # Architecture
 
-How the API is layered, and how purchase, negotiation and reservation run. Rationale and rejected
-alternatives live in [`decision-logs.md`](./decision-logs.md); this file describes what exists.
+How the API is layered, and how purchase, negotiation and reservation run. This file describes what
+exists, not why it was chosen over the alternatives.
 
 ---
 
