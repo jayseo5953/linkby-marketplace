@@ -401,42 +401,64 @@ all ten cards.
 ## LM-09 · Product Registration screen
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-06, LM-08
-**Status:** Not started
+**Status:** Done
 
 > As a seller, I want a form to list a new product, so that I can put an item up for sale (§3.3).
 
 **Acceptance criteria**
 
-- [ ] Form has name, price, description and an image picker allowing multiple files.
-- [ ] **Submit** creates the product in `Available` status and navigates to the Product List, where the new
+- [x] Form has name, price, description and an image picker allowing multiple files.
+- [x] **Submit** creates the product in `Available` status and navigates to the Product List, where the new
       product is visible.
-- [ ] **Cancel** returns to the Product List without saving anything.
-- [ ] Selecting more than 5 images, or an image over 5MB, shows a visible error and blocks submission.
-- [ ] **Name, price and description are all required** — each missing one shows a visible validation error rather
-      than submitting.
-- [ ] **Images are optional** — a product submitted with zero images is created successfully and lands on the
+- [x] **Cancel** returns to the Product List without saving anything.
+- [x] Selecting more than 5 images, or an image over 5MB, shows a visible error and blocks submission.
+- [x] **Name, price and description are all required** — **Submit** stays disabled until all three are filled
+      and the price is a positive amount.
+- [x] **Images are optional** — a product submitted with zero images is created successfully and lands on the
       Product List. The required/optional split is enforced server-side too, not only
       by the form.
-- [ ] While the upload is in flight, submit cannot be double-clicked into creating two products.
+- [x] While the upload is in flight, submit cannot be double-clicked into creating two products.
 
 **QA steps** — *browser*
 
-1. Log in as Alice, click **Sell**.
-2. Click **Submit** with all fields empty → visible validation errors on name, price **and** description; no navigation.
-3. Fill name and price but leave **description** blank, click **Submit** → visible validation error, no product created
+1. Log in as Alice, click **Sell** → the New listing form, **Submit** disabled.
+2. Fill name and price but leave **description** blank → **Submit** still disabled, no navigation possible
    (`psql $DB -c "select count(*) from products;"` unchanged).
+3. Type `abc`, then `0`, then `-5` into **Price** → the field goes red and reads `Enter an amount greater
+   than 0, in dollars and cents — for example 250.00.` each time; typing `250.00` clears it. An *empty*
+   price shows no message.
+4. Type into **Name** and **Description** → each shows a `used/limit` counter (`22/120`, `150/2000`) that
+   tracks every keystroke, and the browser stops input at 120 and 2000 characters. A 2000-character
+   description scrolls inside the field rather than pushing **Submit** off-screen.
 4. Fill name `QA No Images`, price `30`, description `qa test`, attach **no** images, click **Submit** → succeeds,
-   lands on Product List, card renders without a broken image.
-5. Fill name `QA Lamp`, price `45`, description `qa test`, attach 2 images (use `mcp__claude-in-chrome__file_upload`),
-   click **Submit** → lands on Product List, `QA Lamp` card is present with an image, price `45`, seller Alice, no status badge.
-6. Click **Sell** again, fill the form, then click **Cancel** → back on Product List, no new card appears;
-   confirm with `psql $DB -c "select count(*) from products;"` (unchanged from before Cancel).
-7. Click **Sell**, attach 6 images → visible error, Submit blocked.
-8. Click **Sell**, attach a >5MB file → visible error, Submit blocked.
-9. Fill a valid form and double-click **Submit** quickly → `psql $DB -c "select count(*) from products where name='<that name>';"` → `1`.
-10. Server-side enforcement of the same split:
+   lands on Product List, card renders the parcel icon rather than a broken image.
+5. Click **Sell**, fill name `QA Lamp`, price `45`, description `qa test`, attach 2 images (use
+   `mcp__chrome-devtools__upload_file`) → thumbnails appear with `3 slots remaining`; **Submit** → lands on
+   Product List, `QA Lamp` card present with its image, price `$45.00`, seller Alice, `Available` badge.
+6. Click the `(x)` on a thumbnail → that image is removed and the slot count goes back up.
+7. Click **Sell** again, fill the form, then click **Cancel** → back on Product List, no new card appears;
+   confirm with `psql $DB -c "select count(*) from products;"` (unchanged from before Cancel). Returning to
+   **Sell** shows an empty form — nothing carried over.
+8. Click **Sell**, select 6 images in one batch → the 6th is named in a visible error
+   (`Only 5 images allowed — "…" was not added.`), the first 5 are kept, and the file input is disabled at
+   `0 slots remaining`.
+9. Click **Sell**, attach a >5MB file → `"…" is 6.2MB — the limit is 5.0MB per image. Not added.`, nothing
+   added to the selection.
+10. Fill a valid form and double-click **Submit** quickly →
+   `psql $DB -c "select count(*) from products where name='<that name>';"` → `1`.
+11. Submit failure: in the devtools console, make the create call fail
+    (`const real = fetch; fetch = (u, i) => i?.method === 'POST' ? Promise.reject(new TypeError('x')) : real(u, i)`),
+    then **Submit** → `Couldn't create the listing. Nothing was saved.` with every field and thumbnail still in
+    place. Restore `fetch` and click **Submit** again → the product is created once.
+12. At a 375px viewport the form is single-column, the thumbnails wrap, and `document.scrollWidth` equals the
+    viewport width — no horizontal scroll, every control reachable.
+13. Server-side enforcement of the same split:
     `curl -i -X POST http://localhost:3000/api/products -H "Authorization: Bearer $TOKEN_ALICE" -F 'name=No Desc' -F 'priceCents=1000'`
     → `400`; the same call with `-F 'description=ok'` and no image parts → `201`.
+14. Server-side length caps, which the form's `maxLength` cannot be trusted to enforce: the same call with a
+    121-character name → `400` naming `name`; a 120-character name → `201`.
+15. A product with a 117-character name renders on the Product List as a single ellipsed title line, with
+    the full name in the hover tooltip, and its card the same height as every other card in the row.
 
 ---
 
@@ -1258,4 +1280,5 @@ Normal window = **Alice (seller)**. Incognito = **Bob**.
 
 *(LM-28 was proposed and cut. The ID is retired and deliberately left unused; the remaining tickets are **not**
 renumbered, so every cross-reference in this doc stays valid.)*
+
 

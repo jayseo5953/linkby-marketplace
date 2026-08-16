@@ -13,9 +13,12 @@ export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 // SVG is excluded: it carries script, and the bucket serves what it is given to anyone (T-74).
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+export const MAX_NAME_LENGTH = 120;
+export const MAX_DESCRIPTION_LENGTH = 2000;
+
 export const createProductRequestSchema = z.object({
-  name: z.string().trim().min(1),
-  description: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(MAX_NAME_LENGTH),
+  description: z.string().trim().min(1).max(MAX_DESCRIPTION_LENGTH),
   // Cents: the API parses a wire format and never converts a unit. The browser turns what the
   // user typed into cents, where the raw string still exists (T-60).
   priceCents: positiveIntFromText,

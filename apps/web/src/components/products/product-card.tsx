@@ -29,7 +29,9 @@ export function ProductCard({ product }: { product: ProductListItemResponse }) {
         </div>
 
         <CardContent className="flex flex-col gap-1">
-          <CardTitle>{product.name}</CardTitle>
+          <CardTitle className="truncate" title={product.name}>
+            {product.name}
+          </CardTitle>
           <p className="font-medium">{formatPrice(product.priceCents)}</p>
           <p className="text-muted-foreground">Seller: {product.seller.displayName}</p>
         </CardContent>

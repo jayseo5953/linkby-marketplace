@@ -131,7 +131,7 @@ Terminology used throughout:
 | Signed-in email (header) | Static label, identifies the acting user (matters a lot here — role is per-product) | — |
 | Product card (whole card clickable) | Opens the listing | Product Details |
 | Card image | First uploaded image; a parcel icon on a neutral block if the product has none | — |
-| Card name / price / seller | Static. Price is the **listed** price, never the negotiated one | — |
+| Card name / price / seller | Static. Price is the **listed** price, never the negotiated one. The name is one line, ellipsed when it overflows, with the full text on hover | — |
 | Card status badge (bottom-right) | Text badge | — |
 
 **Visibility / enablement**
@@ -225,9 +225,10 @@ treatment ruled on by the product owner is a **modal**, deferred to bonus scope 
 
 | Element | Behaviour | Navigates to |
 | --- | --- | --- |
-| Name | Required text | — |
+| Name | Required text, max 120 characters | — |
 | Price | Required, positive number, currency-prefixed | — |
-| Description | Required multi-line text (A10, decided) | — |
+| Description | Required multi-line text (A10, decided), max 2000 characters | — |
+| Character counter | `used/limit` under Name and Description, always visible | — |
 | `Choose files` | Adds image files to the pending set | — |
 | Thumbnail `(x)` | Removes that image from the pending set before submit | — |
 | Slots-remaining counter | `5 - selected` ; the file picker is disabled at 0 | — |
@@ -238,6 +239,8 @@ treatment ruled on by the product owner is a **modal**, deferred to bonus scope 
 
 - `Submit` disabled while: any required field is empty, price is non-numeric or ≤ 0, any selected
   file fails validation, or a submit is already in flight.
+- An empty field carries no message — it explains itself. A price that is filled in but cannot be
+  parsed does carry one, since a dead button beside a filled field has no visible cause.
 - `Choose files` disabled once 5 images are selected.
 - Images are optional — a product with zero images is valid (§3.2 says "first image *if any*").
 - The price field exists **only** here. There is no edit-price control anywhere in core scope (§2.4).
@@ -266,10 +269,12 @@ treatment ruled on by the product owner is a **modal**, deferred to bonus scope 
 ### 3b. Registration — submit failure
 
 ```
-|  (!) Couldn't create the listing. Nothing was saved.  [ Try again ]          |
+|  (!) Couldn't create the listing. Nothing was saved.                         |
 ```
 
 - Fields and selected images are all preserved so the user can retry without re-picking files.
+- The message sits above the fields; `Submit` is the retry, so there is no separate `Try again`
+  button next to it.
 
 ### 3c. Registration — submitting
 
