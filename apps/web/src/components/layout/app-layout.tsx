@@ -11,7 +11,7 @@ export function AppLayout() {
       <header className="border-b">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link to={ROUTES.products} className="font-medium">
-            Linkby Marketplace
+            <span aria-hidden>🏷️</span> Linkby Marketplace
           </Link>
           <nav className="flex items-center gap-2">
             <Button asChild variant="outline">
