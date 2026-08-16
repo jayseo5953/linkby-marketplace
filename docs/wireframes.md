@@ -134,6 +134,7 @@ Terminology used throughout:
 | Card name / price / seller | Static. Price is the **listed** price, never the negotiated one. The name is one line, ellipsed when it overflows, with the full text on hover | — |
 | Card status badge (bottom-right) | Text badge | — |
 | `Your listing` badge | A shop icon and the words, left of the status badge, only on products the viewer sells | — |
+| `Reserved for you` badge | Same position, on a `Reserved` product whose buyer is the viewer | — |
 
 **Visibility / enablement**
 
@@ -330,7 +331,8 @@ takes the full width instead of sitting beside an empty column.
 | Name / status / listed price / description | Static display (§3.4) | — |
 | Seller line | Always the seller's name | — |
 | `This is your listing.` banner | Above the title, only when the viewer sells this product. Carries the same shop icon as the card's badge | — |
-| `This product is no longer available.` banner | Above the title when the product is `Reserved` or `Sold`, except for the seller and except for the reserved buyer, who can still complete their purchase | — |
+| `This product is reserved for you.` banner | Above the title when the viewer is the reserved buyer, telling them they can now proceed to purchase | — |
+| `This product is no longer available.` banner | Above the title when the product is `Reserved` or `Sold`, except for the seller and except for the reserved buyer | — |
 | Images | Every image, three to a row (two below `sm`), each whole and uncropped | — |
 | An image | Clicking it opens that image's original, full size | New browser tab |
 
@@ -350,19 +352,20 @@ context banner. All governed by the tables in 4.4–4.6.
 
 | Condition | Banner text |
 | --- | --- |
+| Viewer is the seller | `This is your listing.` — regardless of status |
 | `Available`, no offers at all | *(none)* |
 | `Available`, viewer's own thread awaits the seller | `Your offer of $220.00 is awaiting the seller's response.` |
 | `Available`, viewer is seller, ≥1 thread awaits them | `2 offers are waiting on your response.` |
-| `Reserved`, viewer is the reserved buyer | `Reserved for you at $220.00. Complete the purchase below.` |
-| `Reserved`, viewer is the seller | `Reserved for dan at $220.00, pending their purchase.` |
-| `Reserved`, viewer is any other buyer | `This product is reserved for another buyer.` |
-| `Sold` | `Sold at $220.00.` — the final price is public to every viewer (A5, decided) |
+| `Reserved`, viewer is the reserved buyer | `This product is reserved for you.` / `You can now proceed to purchase.` |
+| `Reserved`, viewer is any other buyer | `This product is no longer available.` |
+| `Sold`, viewer is not the seller | `This product is no longer available.` |
 
-The banner is the only place the **negotiated/accepted** price appears outside the history. The
-"Listed price" line never changes (§2.4).
+The accepted price is not repeated in a banner: the reserved buyer's Purchase button already names the
+amount it will charge, and the status badge names the status. The "Listed price" line never changes
+(§2.4).
 
-The seller's `Reserved` banner names the winning buyer, consistent with the Buyer column in the
-history table directly below it (§5.1).
+The offer-dependent rows — the two `Available` ones, and naming the winning buyer to the seller —
+arrive with the negotiation history, which is where the offers and the buyer's name come from.
 
 ### 4.3 Enumerated states
 

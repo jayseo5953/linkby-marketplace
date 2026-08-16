@@ -64,6 +64,7 @@ export const productListItemResponseSchema = z.object({
   priceCents: z.number().int().positive(),
   status: z.enum(PRODUCT_STATUSES),
   seller: sellerSchema,
+  buyerId: z.number().int().positive().nullable(),
   imageUrl: z.string().nullable(),
   createdAt: z.string(),
 });

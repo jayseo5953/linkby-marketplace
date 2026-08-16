@@ -1,5 +1,5 @@
 import type { ProductListItemResponse } from '@linkby/shared';
-import { Package, Store } from 'lucide-react';
+import { BookmarkCheck, Package, Store } from 'lucide-react';
 import { Link } from 'react-router';
 import { ProductStatusBadge } from '@/components/products/product-status-badge';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { productDetailPath } from '@/lib/routes';
 export function ProductCard({ product }: { product: ProductListItemResponse }) {
   const { session } = useAuth();
   const viewerIsSeller = session?.user.id === product.seller.id;
+  const reservedForViewer = product.status === 'Reserved' && session?.user.id === product.buyerId;
 
   return (
     <Link to={productDetailPath(product.id)} className="block rounded-xl">
@@ -36,6 +37,12 @@ export function ProductCard({ product }: { product: ProductListItemResponse }) {
             <Badge variant="secondary">
               <Store />
               Your listing
+            </Badge>
+          )}
+          {reservedForViewer && (
+            <Badge variant="secondary">
+              <BookmarkCheck />
+              Reserved for you
             </Badge>
           )}
           <ProductStatusBadge status={product.status} />

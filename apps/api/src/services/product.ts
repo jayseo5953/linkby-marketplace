@@ -62,12 +62,13 @@ export async function createProduct(
 export async function listProducts(): Promise<ProductListItemResponse[]> {
   const rows = await productRepo.findAll();
 
-  return rows.map(({ id, name, priceCents, status, seller, imageKeys, createdAt }) => ({
+  return rows.map(({ id, name, priceCents, status, seller, buyerId, imageKeys, createdAt }) => ({
     id,
     name,
     priceCents,
     status,
     seller,
+    buyerId,
     imageUrl: imageKeys.map(publicUrl).at(0) ?? null,
     createdAt: createdAt.toISOString(),
   }));

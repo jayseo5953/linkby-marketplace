@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Ban, CircleAlert, Store } from 'lucide-react';
+import { ArrowLeft, Ban, BookmarkCheck, CircleAlert, Store } from 'lucide-react';
 import { useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -7,7 +7,7 @@ import * as productsApi from '@/api/products';
 import { hasActions, ProductActionPanel } from '@/components/products/product-action-panel';
 import { ProductImages } from '@/components/products/product-images';
 import { ProductStatusBadge } from '@/components/products/product-status-badge';
-import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { formatPrice } from '@/lib/format';
@@ -78,11 +78,10 @@ export function ProductDetailsPage() {
     );
   }
 
-  const { name, status, priceCents, description, seller, imageUrls } = product.data;
+  const { name, status, priceCents, description, seller, buyerId, imageUrls } = product.data;
   const viewerIsSeller = session?.user.id === seller.id;
-  // The reserved buyer is the exception: the product is closed to everyone but them, and they can still buy.
-  const isClosedToViewer =
-    status !== 'Available' && !viewerIsSeller && !product.data.viewer.canPurchase;
+  const reservedForViewer = status === 'Reserved' && session?.user.id === buyerId;
+  const isClosedToViewer = status !== 'Available' && !viewerIsSeller && !reservedForViewer;
 
   return (
     <div className="flex flex-col gap-6">
@@ -103,6 +102,14 @@ export function ProductDetailsPage() {
               <Alert>
                 <Store />
                 <AlertTitle>This is your listing.</AlertTitle>
+              </Alert>
+            )}
+
+            {reservedForViewer && (
+              <Alert>
+                <BookmarkCheck />
+                <AlertTitle>This product is reserved for you.</AlertTitle>
+                <AlertDescription>You can now proceed to purchase.</AlertDescription>
               </Alert>
             )}
 
