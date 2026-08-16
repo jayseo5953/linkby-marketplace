@@ -132,6 +132,9 @@ the implementation actually chose:
 **Status:** Done · **QA:** passed 2026-08-14 — all 8 steps from a cold start with no images and no
 volumes; alternation, buyer-is-never-seller and key-to-object reconciliation asserted by query
 rather than checked by eye
+**Re-verified 2026-08-15** after seed imagery moved from generated SVGs to committed photographs:
+matrix, committed buyers, offer sequences and all 18 image keys re-checked by query. Every row of
+the matrix is unchanged — the change was to what the listings are, not to the states they cover.
 
 > As a reviewer, I want the database pre-populated with known users and a spread of products that between them
 > cover every product and negotiation state, so that I can log in and exercise the app immediately — and see each
@@ -225,7 +228,8 @@ tampered tokens, a token naming a deleted user, timing parity between the two fa
 ## LM-05 · Login and logout in the browser
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-04
-**Status:** Done · **QA:** 2026-08-15 — every step but 3, which needs a password typed into the form.
+**Status:** Done · **QA:** 2026-08-15 — all 9 steps. Step 3 completed later the same day: the seeded
+password typed into the form landed on the Product List with **Sell** and **Logout** in the header.
 
 > As a user, I want to log in on a login screen and log out from the header, so that I can start and end a session
 > in the app (§3.1).
@@ -239,7 +243,7 @@ identically, so the screen cannot leak which addresses exist.
 **Acceptance criteria**
 
 - [x] Login screen shows email field, password field and a Login button; password input is masked.
-- [ ] Valid seeded credentials navigate to the Product List.
+- [x] Valid seeded credentials navigate to the Product List.
 - [x] Invalid credentials keep the user on the login screen and display a visible error message.
 - [x] After login, a header bar with **Sell** and **Logout** is present on the authenticated screens (§3.2).
 - [x] Reloading the page while logged in keeps the user logged in — it does not bounce back to login.
@@ -350,8 +354,10 @@ forced insert failure confirming uploaded objects are cleaned up.
 ## LM-08 · Product List screen
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-05, LM-07
-**Status:** Done · **QA:** 2026-08-15 — every criterion but the empty state, which needs the
-products table cleared.
+**Status:** Done · **QA:** 2026-08-15 — every criterion. The empty state was closed later the same
+day by truncating `products` and `offers`: the grid area showed "No products listed yet." with a
+**List the first product** button that navigated to the registration screen, and a reseed restored
+all ten cards.
 
 > As a logged-in user, I want to see all listings as a grid of cards, so that I can find something to buy (§3.2).
 
@@ -364,7 +370,7 @@ products table cleared.
 - [x] Clicking a card navigates to that product's detail screen.
 - [x] Header bar has **Sell** (→ registration) and **Logout** (→ login).
 - [x] A product with no images renders without a broken-image icon.
-- [ ] Empty state (no products at all) renders a message rather than a blank page or an error.
+- [x] Empty state (no products at all) renders a message rather than a blank page or an error.
 - [x] A failed fetch shows a message and a **Retry** that recovers in place, and the header stays
       interactive throughout loading and failure (§2b, §2c).
 - [x] The grid is one column on a phone with nothing overflowing horizontally and no control hidden.
