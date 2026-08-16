@@ -815,27 +815,34 @@ but each item is individually droppable without breaking the product.
 ## LM-18 · Concurrency and atomicity test suite
 
 **Priority:** P1 · **Estimate:** 2h · **Depends on:** LM-11, LM-14
-**Status:** Not started
+**Status:** Done · QA: 2026-08-16, 16/16 checks, five consecutive runs
 
 > As an engineer, I want automated proof that concurrent purchase and accept attempts cannot both succeed, so that
 > the atomicity requirement is demonstrated rather than asserted (§2.3, §6).
 
+**Delivered as** `apps/api/test/smoke/api.smoke.test.ts`, run with `npm run test:smoke -w @linkby/api`
+against a stack started by `docker compose up -d`. The suite is wider than this ticket: alongside the three
+races it covers session handling, product creation and reading, a three-party negotiation, and every refusal
+code. The unit run (`npm test`) stays separate and needs no stack.
+
 **Acceptance criteria**
 
-- [ ] A test fires N concurrent purchase attempts at one `Available` product: exactly one succeeds, the rest fail
+- [x] A test fires N concurrent purchase attempts at one `Available` product: exactly one succeeds, the rest fail
       with a conflict, final status is `Sold` exactly once.
-- [ ] A test fires concurrent accepts on two different threads of the same product: exactly one wins, the loser is
+- [x] A test fires concurrent accepts on two different threads of the same product: exactly one wins, the loser is
       rejected, exactly one reserved buyer is recorded. This is a **first-class scenario alongside the concurrent
       purchase test**, not an afterthought — simultaneous live seller counters are a
       normal, uncapped state, so this race is reachable in ordinary use rather than being an edge case.
-- [ ] The accept-race test asserts *exactly one* winner without asserting *which* buyer wins, so it does not depend
+- [x] The accept-race test asserts *exactly one* winner without asserting *which* buyer wins, so it does not depend
       on scheduling order and cannot flake.
-- [ ] A test covers concurrent purchase-vs-accept on the same product — the outcome is one of the two legal states,
+- [x] A test covers concurrent purchase-vs-accept on the same product — the outcome is one of the two legal states,
       never a mixed/invalid one.
-- [ ] Tests run against a real Postgres (the guarantee under test is a database guarantee).
-- [ ] The suite is deterministic enough to run in CI or locally without flaking; the whole suite runs with one
+- [x] Tests run against a real Postgres (the guarantee under test is a database guarantee).
+- [x] The suite is deterministic enough to run in CI or locally without flaking; the whole suite runs with one
       documented command.
-- [ ] Combined with LM-11 and LM-13, all three §6 areas are covered: direct purchase, counter-offer flow, atomicity.
+- [x] Combined with LM-11 and LM-13, all three §6 areas are covered: direct purchase, counter-offer flow, atomicity.
+- [x] Each test provisions its own product and an `afterAll` deletes this run's rows by id, so the suite re-runs
+      without a reseed and leaves the seeded demo data untouched.
 
 **QA steps** — *backend*
 
@@ -847,8 +854,13 @@ but each item is individually droppable without breaking the product.
 4. `psql $DB -c "select status, count(*) from products where id='<fresh_id>' group by 1;"` → single `Sold` row.
 5. Accept-race corroboration: reproduce LM-14 QA steps 11–14 by hand once → one winner, one conflict, one reserved
    buyer. The suite's version of this must assert the same outcome.
-6. Regression probe: temporarily comment out the status guard in the transition, re-run the suite → **both** the
-   purchase-race and the accept-race tests fail (proves each actually tests the guard). Restore the code afterwards.
+6. Regression probe: temporarily neutralise a refusal guard, re-run the suite → the test covering that guard fails
+   (proves it actually tests the guard). Restore the code afterwards. The purchase and accept guards are separate,
+   so each is probed on its own: disabling the purchase guard fails the purchase-race test, disabling the accept
+   guard fails the accept-race test.
+7. Confirm the suite left nothing behind: `select count(*) from products;` and `select count(*) from offers;` →
+   back to the seeded counts. One placeholder image per run stays in the bucket; `npm run db:seed -- --force`
+   clears the prefix.
 
 ---
 
