@@ -1,7 +1,9 @@
 import {
+  productDetailResponseSchema,
   productListItemResponseSchema,
   productResponseSchema,
   type CreateProductRequest,
+  type ProductDetailResponse,
   type ProductListItemResponse,
   type ProductResponse,
 } from '@linkby/shared';
@@ -10,6 +12,10 @@ import { authedRequest } from '@/lib/http';
 
 export async function listProducts(): Promise<ProductListItemResponse[]> {
   return authedRequest('/api/products', z.array(productListItemResponseSchema));
+}
+
+export async function getProduct(id: number): Promise<ProductDetailResponse> {
+  return authedRequest(`/api/products/${id}`, productDetailResponseSchema);
 }
 
 export async function createProduct(

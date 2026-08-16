@@ -300,7 +300,7 @@ treatment ruled on by the product owner is a **modal**, deferred to bonus scope 
 |  top plate.                                                                  |
 |                                                                              |
 |  +---------+ +---------+ +---------+                                         |
-|  | [img 1] | | [img 2] | | [img 3] |     (plain <img> tags, no carousel)     |
+|  | [img 1] | | [img 2] | | [img 3] |   (every image, three to a row)         |
 |  +---------+ +---------+ +---------+                                         |
 |                                                                              |
 |  --- ACTION BAR (contents vary by state — see 4.3) -----------------------   |
@@ -319,8 +319,13 @@ on it right now.
 | Element | Behaviour | Navigates to |
 | --- | --- | --- |
 | `< Back to products` | Plain back link | Product List |
-| Name / status / listed price / description / images | Static display (§3.4) | — |
+| Name / status / listed price / description | Static display (§3.4) | — |
 | Seller line | Shows seller name, or the "you are the seller" note when viewer owns it | — |
+| Images | Every image, three to a row (two below `sm`), each whole and uncropped | — |
+| An image | Clicking it opens that image's original, full size | New browser tab |
+
+When a product has no images, the grid is replaced by a muted placeholder box carrying the same
+package icon the card uses.
 
 **Conditional elements:** `Purchase`, initial `Counter Offer`, the Negotiation History section, and a
 context banner. All governed by the tables in 4.4–4.6.
@@ -469,7 +474,7 @@ navigates to **Product List**.
 | State | Presentation |
 | --- | --- |
 | Loading | `Loading product…` in the content area; header interactive |
-| Not found / deleted | `That product doesn't exist.  [ Back to products ]` |
+| Not found / deleted / malformed id in the URL | `That product doesn't exist.  [ Back to products ]` — a malformed id shows this without asking the server |
 | Fetch failure | `(!) Couldn't load this product.  [ Retry ]` |
 | Stale action conflict | See §7 |
 | Action in flight | The clicked button shows `Working…` and **all** action controls on the page disable together — never let a second mutating click through |

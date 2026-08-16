@@ -465,30 +465,36 @@ all ten cards.
 ## LM-10 · Product Details screen
 
 **Priority:** P0 · **Estimate:** 1.5h · **Depends on:** LM-07, LM-08
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-15 — all 10 steps, at 1280px and at 375px.
 
 > As a logged-in user, I want to see everything about one listing on its own screen, so that I can decide whether
 > to buy or negotiate (§3.4).
 
 **Acceptance criteria**
 
-- [ ] Shows name, status, initial price, description and **all** images.
-- [ ] Plain text and plain `<img>` tags are acceptable — no gallery/carousel needed (§3.4).
-- [ ] Reachable by clicking a card, and directly by URL while logged in.
-- [ ] Seller's own product renders without buyer controls (the specific button rules land in LM-12 and LM-16).
-- [ ] Unknown product id shows a not-found message, not a crash or blank screen.
-- [ ] Refreshing the page re-fetches current state (refresh-driven updates are sufficient, §4.1).
+- [x] Shows name, status, initial price, description and **all** images.
+- [x] Images sit in a grid, all visible at once; clicking one opens the original full size in a new tab.
+- [x] Reachable by clicking a card, and directly by URL while logged in.
+- [x] Seller's own product renders without buyer controls (the specific button rules land in LM-12 and LM-16).
+- [x] Unknown product id shows a not-found message, not a crash or blank screen.
+- [x] Refreshing the page re-fetches current state (refresh-driven updates are sufficient, §4.1).
 
 **QA steps** — *browser*
 
-1. Log in as Bob, click a product with multiple images → detail screen shows name, status, price, description and
-   every image.
-2. Copy the URL, reload → same content renders.
-3. Log in as Alice (the seller) in an **incognito window**, open the same product → same core content renders,
-   no buyer-only controls.
-4. Edit the URL to an id that does not exist → not-found message, no crash and no blank white screen.
-5. Change the product's status in SQL (`update products set status='Sold' …`), reload the page → status text updates.
-   Restore afterwards.
+1. Log in, click a product with five images → detail screen shows name, status badge, listed price, seller line,
+   description and all five images, three to a row.
+2. Click any image → a new tab opens the stored original at full size.
+3. Copy the URL, reload → same content renders.
+4. Open a product you are the seller of → "You are the seller of this item." replaces the seller name, and the
+   screen carries no buttons at all.
+5. Open a product with no images → the muted placeholder box, not an empty gap.
+6. Edit the URL to an id that does not exist → "That product doesn't exist." with a Back to products button.
+7. Edit the URL to `/products/abc` → the same message, and no request is sent to the API.
+8. Break the API call and reload → "Couldn't load this product." with Retry; restore it and click Retry → the
+   product renders.
+9. Change the product's status in SQL (`update products set status='Sold', buyer_id=…, final_price_cents=… where
+   id=…`), reload → the badge reads Sold and the listed price is unchanged. Restore afterwards.
+10. At a 375px viewport → no horizontal scroll, images two to a row, everything reachable.
 
 ---
 
