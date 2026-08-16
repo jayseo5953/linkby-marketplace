@@ -1,3 +1,4 @@
+import { Store } from 'lucide-react';
 import { Link, Outlet } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
@@ -16,7 +17,10 @@ export function AppLayout() {
           </Link>
           <nav className="flex items-center gap-2">
             <Button asChild variant="outline">
-              <Link to={ROUTES.newProduct}>Sell</Link>
+              <Link to={ROUTES.newProduct}>
+                <Store />
+                Sell
+              </Link>
             </Button>
             <Button variant="ghost" onClick={signOut}>
               Logout

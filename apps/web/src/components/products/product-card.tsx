@@ -1,5 +1,5 @@
 import type { ProductListItemResponse } from '@linkby/shared';
-import { BookmarkCheck, Package, Store } from 'lucide-react';
+import { BookmarkCheck, Package } from 'lucide-react';
 import { Link } from 'react-router';
 import { ProductStatusBadge } from '@/components/products/product-status-badge';
 import { Badge } from '@/components/ui/badge';
@@ -34,10 +34,7 @@ export function ProductCard({ product }: { product: ProductListItemResponse }) {
 
         <CardFooter className="mt-auto justify-end gap-2">
           {viewerIsSeller && (
-            <Badge variant="secondary">
-              <Store />
-              Your listing
-            </Badge>
+            <Badge variant="secondary">Your listing</Badge>
           )}
           {reservedForViewer && (
             <Badge variant="secondary">
