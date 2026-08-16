@@ -6,8 +6,8 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import * as offersApi from '@/api/offers';
 import * as productsApi from '@/api/products';
-import type { OpenForm } from '@/components/products/negotiation-history';
-import { hasActions, ProductActionPanel } from '@/components/products/product-action-panel';
+import { CounterOfferForm } from '@/components/products/counter-offer-form';
+import { NegotiationHistory } from '@/components/products/negotiation-history';
 import { ProductImages } from '@/components/products/product-images';
 import { ProductStatusBadge } from '@/components/products/product-status-badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -22,14 +22,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { formatPrice } from '@/lib/format';
-import { ApiError } from '@/lib/http';
+import { ApiError, errorMessage } from '@/lib/http';
 import { ROUTES } from '@/lib/routes';
 
-function refusal(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? error.message : fallback;
-}
+type OpenForm = number | 'new' | null;
 
 export function ProductDetailsPage() {
   const { id } = useParams();
@@ -41,7 +40,17 @@ export function ProductDetailsPage() {
   const idIsUsable = Number.isInteger(productId) && productId > 0;
   // Set synchronously: a double-click fires twice before `isPending` has re-rendered the button.
   const inFlight = useRef(false);
+  const release = () => {
+    inFlight.current = false;
+  };
   const [openForm, setOpenForm] = useState<OpenForm>(null);
+
+  function guard(run: () => void) {
+    if (inFlight.current) return;
+
+    inFlight.current = true;
+    run();
+  }
 
   const product = useQuery({
     queryKey: ['product', productId],
@@ -50,7 +59,7 @@ export function ProductDetailsPage() {
   });
 
   const offers = useQuery({
-    queryKey: ['offers', productId],
+    queryKey: ['product', productId, 'offers'],
     queryFn: () => offersApi.listOffers(productId),
     enabled: idIsUsable,
   });
@@ -60,55 +69,43 @@ export function ProductDetailsPage() {
     onSuccess: (bought) => queryClient.setQueryData(['product', productId], bought),
     // The refetch re-renders the screen as it truly is now, so the toast only has to say the click did nothing.
     onError: (error) => {
-      toast.error(refusal(error, "Couldn't reach the server to buy this product"), {
+      toast.error(errorMessage(error, "Couldn't reach the server to buy this product"), {
         description: 'Your purchase was not completed.',
       });
-      void product.refetch();
-      void offers.refetch();
+      void queryClient.invalidateQueries({ queryKey: ['product', productId] });
     },
-    onSettled: () => {
-      inFlight.current = false;
-    },
+    onSettled: release,
   });
 
   const accept = useMutation({
     mutationFn: (offerId: number) => offersApi.acceptOffer(offerId),
-    // Staying shows the accepted row, the frozen controls and the reserved banner in place.
     onSuccess: (reserved) => {
       setOpenForm(null);
       queryClient.setQueryData(['product', productId], reserved);
-      void offers.refetch();
+      void queryClient.invalidateQueries({ queryKey: ['product', productId, 'offers'] });
     },
     onError: (error) => {
-      toast.error(refusal(error, "Couldn't reach the server to accept this offer"), {
+      toast.error(errorMessage(error, "Couldn't reach the server to accept this offer"), {
         description: 'The offer was not accepted.',
       });
-      void product.refetch();
-      void offers.refetch();
+      void queryClient.invalidateQueries({ queryKey: ['product', productId] });
     },
-    onSettled: () => {
-      inFlight.current = false;
-    },
+    onSettled: release,
   });
 
   const counter = useMutation({
     mutationFn: (offer: CreateOfferRequest) => offersApi.createOffer(productId, offer),
-    // Staying puts the new offer in the history the viewer is already reading.
     onSuccess: () => {
       setOpenForm(null);
-      void product.refetch();
-      void offers.refetch();
+      void queryClient.invalidateQueries({ queryKey: ['product', productId] });
     },
     onError: (error) => {
-      toast.error(refusal(error, "Couldn't reach the server to send this offer"), {
+      toast.error(errorMessage(error, "Couldn't reach the server to send this offer"), {
         description: 'Your offer was not sent.',
       });
-      void product.refetch();
-      void offers.refetch();
+      void queryClient.invalidateQueries({ queryKey: ['product', productId] });
     },
-    onSettled: () => {
-      inFlight.current = false;
-    },
+    onSettled: release,
   });
 
   const isMissing =
@@ -138,10 +135,7 @@ export function ProductDetailsPage() {
         </p>
         <Button
           variant="outline"
-          onClick={() => {
-            void product.refetch();
-            void offers.refetch();
-          }}
+          onClick={() => void queryClient.invalidateQueries({ queryKey: ['product', productId] })}
         >
           Retry
         </Button>
@@ -149,10 +143,14 @@ export function ProductDetailsPage() {
     );
   }
 
-  const { name, status, priceCents, description, seller, buyerId, imageUrls } = product.data;
+  const { name, status, priceCents, description, seller, buyerId, imageUrls, viewer } =
+    product.data;
   const viewerIsSeller = session?.user.id === seller.id;
   const reservedForViewer = status === 'Reserved' && session?.user.id === buyerId;
   const isClosedToViewer = status !== 'Available' && !viewerIsSeller && !reservedForViewer;
+  const isWorking = purchase.isPending || accept.isPending || counter.isPending;
+  const showPanel =
+    viewer.canPurchase || viewer.canStartNegotiation || offers.data.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -166,7 +164,7 @@ export function ProductDetailsPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div
-          className={`flex flex-col gap-6 ${hasActions(product.data, offers.data) ? 'lg:col-span-2' : 'lg:col-span-3'}`}
+          className={`flex flex-col gap-6 ${showPanel ? 'lg:col-span-2' : 'lg:col-span-3'}`}
         >
           <div className="flex flex-col gap-2">
             {viewerIsSeller && (
@@ -204,32 +202,56 @@ export function ProductDetailsPage() {
           <ProductImages name={name} imageUrls={imageUrls} />
         </div>
 
-        <ProductActionPanel
-          product={product.data}
-          offers={offers.data}
-          viewerId={session?.user.id}
-          openForm={openForm}
-          onOpenForm={setOpenForm}
-          isWorking={purchase.isPending || accept.isPending || counter.isPending}
-          onPurchase={() => {
-            if (inFlight.current) return;
+        {showPanel && (
+          <aside className="lg:sticky lg:top-6">
+            <Card>
+              <CardContent className="flex flex-col gap-4">
+                {viewer.canPurchase && viewer.purchasePriceCents !== null && (
+                  <Button disabled={isWorking} onClick={() => guard(() => purchase.mutate())}>
+                    {isWorking
+                      ? 'Working…'
+                      : `Purchase — ${formatPrice(viewer.purchasePriceCents)}`}
+                  </Button>
+                )}
 
-            inFlight.current = true;
-            purchase.mutate();
-          }}
-          onAccept={(offerId) => {
-            if (inFlight.current) return;
+                {viewer.canStartNegotiation &&
+                  (openForm === 'new' ? (
+                    <CounterOfferForm
+                      context={`Listed price: ${formatPrice(priceCents)}`}
+                      warning="Submitting starts a negotiation. You will no longer be able to buy this product at the listed price."
+                      submitLabel="Submit offer"
+                      isWorking={isWorking}
+                      onCancel={() => setOpenForm(null)}
+                      onSubmit={(amountCents) => guard(() => counter.mutate({ amountCents }))}
+                    />
+                  ) : (
+                    <Button
+                      variant="outline"
+                      disabled={isWorking}
+                      onClick={() => setOpenForm('new')}
+                    >
+                      Counter Offer
+                    </Button>
+                  ))}
 
-            inFlight.current = true;
-            accept.mutate(offerId);
-          }}
-          onCounter={(amountCents, inReplyToOfferId) => {
-            if (inFlight.current) return;
-
-            inFlight.current = true;
-            counter.mutate({ amountCents, inReplyToOfferId });
-          }}
-        />
+                {offers.data.length > 0 && (
+                  <NegotiationHistory
+                    offers={offers.data}
+                    seller={seller}
+                    viewerId={session?.user.id}
+                    isWorking={isWorking}
+                    openForm={typeof openForm === 'number' ? openForm : null}
+                    onOpenForm={setOpenForm}
+                    onAccept={(offerId) => guard(() => accept.mutate(offerId))}
+                    onCounter={(amountCents, inReplyToOfferId) =>
+                      guard(() => counter.mutate({ amountCents, inReplyToOfferId }))
+                    }
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </aside>
+        )}
       </div>
 
       {purchase.isSuccess && (

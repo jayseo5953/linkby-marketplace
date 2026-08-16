@@ -19,6 +19,11 @@ export class ApiError extends Error {
   }
 }
 
+// The API owns the wording; the fallback covers no answer and an unparseable one alike.
+export function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback;
+}
+
 export async function request<T>(
   path: string,
   schema: z.ZodType<T>,

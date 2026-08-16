@@ -12,15 +12,15 @@ import {
 } from '@/components/ui/select';
 import { formatOfferTime, formatPrice } from '@/lib/format';
 
-export type OpenForm = number | 'new' | null;
+type Person = { id: number; displayName: string };
 
 type Props = {
   offers: OfferListItemResponse[];
-  seller: { id: number; displayName: string };
+  seller: Person;
   viewerId: number | undefined;
   isWorking: boolean;
-  openForm: OpenForm;
-  onOpenForm: (open: OpenForm) => void;
+  openForm: number | null;
+  onOpenForm: (open: number | null) => void;
   onAccept: (offerId: number) => void;
   onCounter: (amountCents: number, inReplyToOfferId: number) => void;
 };
@@ -36,6 +36,9 @@ export function NegotiationHistory({
   onCounter,
 }: Props) {
   const [threadFilter, setThreadFilter] = useState('all');
+
+  const nameFor = (person: Person) => (person.id === viewerId ? 'You' : person.displayName);
+  const sellerLabel = nameFor(seller);
 
   const threads = [...new Map(offers.map((offer) => [offer.buyer.id, offer.buyer])).values()];
   // A buyer only ever wants their own thread singled out; naming the others would not help them.
@@ -80,7 +83,7 @@ export function NegotiationHistory({
             <SelectItem value="all">All offers</SelectItem>
             {filterable.map((buyer) => (
               <SelectItem key={buyer.id} value={String(buyer.id)}>
-                {buyer.id === viewerId ? 'You' : buyer.displayName}
+                {nameFor(buyer)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -90,11 +93,8 @@ export function NegotiationHistory({
       <ol className="flex flex-col gap-3">
         {shown.map((offer) => {
           const bySeller = offer.madeBy === 'seller';
-          // The viewer's own negotiation, both sides of it; every other buyer's thread stays neutral.
           const isMine = offer.buyer.id === viewerId;
-          const buyerLabel = isMine ? 'You' : offer.buyer.displayName;
-          const sellerLabel = seller.id === viewerId ? 'You' : seller.displayName;
-          const author = bySeller ? sellerLabel : buyerLabel;
+          const buyerLabel = nameFor(offer.buyer);
 
           return (
             <li
@@ -119,32 +119,30 @@ export function NegotiationHistory({
                 <p className="text-muted-foreground text-xs">{formatOfferTime(offer.createdAt)}</p>
               </div>
 
-              {offer.canRespond && openForm !== offer.id && (
-                <div className="flex gap-2">
-                  <Button size="sm" disabled={isWorking} onClick={() => onAccept(offer.id)}>
-                    Accept
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={isWorking}
-                    onClick={() => onOpenForm(offer.id)}
-                  >
-                    Counter Offer
-                  </Button>
-                </div>
-              )}
-
-              {openForm === offer.id && (
-                <CounterOfferForm
-                  id={`counter-${offer.id}`}
-                  context={`Countering ${author}'s offer of ${formatPrice(offer.amountCents)}`}
-                  submitLabel="Submit counter"
-                  isWorking={isWorking}
-                  onCancel={() => onOpenForm(null)}
-                  onSubmit={(amountCents) => onCounter(amountCents, offer.id)}
-                />
-              )}
+              {offer.canRespond &&
+                (openForm === offer.id ? (
+                  <CounterOfferForm
+                    context={`Countering ${bySeller ? sellerLabel : buyerLabel}'s offer of ${formatPrice(offer.amountCents)}`}
+                    submitLabel="Submit counter"
+                    isWorking={isWorking}
+                    onCancel={() => onOpenForm(null)}
+                    onSubmit={(amountCents) => onCounter(amountCents, offer.id)}
+                  />
+                ) : (
+                  <div className="flex gap-2">
+                    <Button size="sm" disabled={isWorking} onClick={() => onAccept(offer.id)}>
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isWorking}
+                      onClick={() => onOpenForm(offer.id)}
+                    >
+                      Counter Offer
+                    </Button>
+                  </div>
+                ))}
             </li>
           );
         })}

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
 import * as authApi from '@/api/auth';
-import { ApiError } from '@/lib/http';
+import { errorMessage } from '@/lib/http';
 import { ROUTES } from '@/lib/routes';
 
 export function LoginPage() {
@@ -49,7 +49,7 @@ export function LoginPage() {
             {login.error !== null && (
               <p role="alert" className="text-destructive flex items-center gap-2 text-sm">
                 <CircleAlert className="size-4 shrink-0" />
-                {describeLoginFailure(login.error)}
+                {errorMessage(login.error, 'Something went wrong. Please try again.')}
               </p>
             )}
 
@@ -90,9 +90,4 @@ export function LoginPage() {
       </p>
     </main>
   );
-}
-
-function describeLoginFailure(error: Error): string {
-  // The API owns the wording; the fallback covers no answer and an unparseable one alike.
-  return error instanceof ApiError ? error.message : 'Something went wrong. Please try again.';
 }

@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import * as productsApi from '@/api/products';
 import { ImagePicker } from '@/components/products/image-picker';
+import { PriceField } from '@/components/products/price-field';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -35,8 +36,6 @@ export function ProductRegistrationPage() {
   });
 
   const priceCents = parsePriceToCents(price);
-  // An empty field explains itself; something typed that cannot be a price does not.
-  const priceIsUnusable = price.trim() !== '' && priceCents === null;
   const canSubmit =
     name.trim() !== '' && description.trim() !== '' && priceCents !== null && !create.isPending;
 
@@ -75,26 +74,12 @@ export function ProductRegistrationPage() {
               <CharacterCount used={name.length} limit={MAX_NAME_LENGTH} />
             </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="price">Price</Label>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">$</span>
-                <Input
-                  id="price"
-                  inputMode="decimal"
-                  placeholder="250.00"
-                  value={price}
-                  readOnly={create.isPending}
-                  aria-invalid={priceIsUnusable}
-                  onChange={(event) => setPrice(event.target.value)}
-                />
-              </div>
-              {priceIsUnusable && (
-                <p role="alert" className="text-destructive text-sm">
-                  Enter an amount greater than 0, in dollars and cents — for example 250.00.
-                </p>
-              )}
-            </div>
+            <PriceField
+              label="Price"
+              value={price}
+              readOnly={create.isPending}
+              onChange={setPrice}
+            />
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="description">Description</Label>
