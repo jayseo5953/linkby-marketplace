@@ -1159,7 +1159,9 @@ contradictory pair like "Available" plus "sold by me" is not representable rathe
 ## LM-24 · Remaining §4.2 bonuses ("my offers", mobile)
 
 **Priority:** P2 · **Estimate:** 2h (≈1h each, pick individually) · **Depends on:** LM-08, LM-16
-**Status:** Not started
+**Status:** Done · **QA:** 2026-08-16 — mobile walked at 375×812 across List, Detail and Registration:
+no horizontal overflow on any screen, no element past the viewport, controls stacked and readable.
+The "my offers" sub-item was not taken; see below.
 
 > As a user, I want to see only products I have offers on and use the app on my phone, so that the app is more
 > usable at scale (§4.2).
@@ -1170,11 +1172,13 @@ contradictory pair like "Available" plus "sold by me" is not representable rathe
 
 - [x] ~~*Search:* a query box filters the product list by name server-side.~~ **Delivered by LM-22**, which
       owns the whole filter bar; splitting search from the view select would have meant two owners for one control.
-- [ ] *"My offers" filter:* shows only products where the current user owns a negotiation thread; correct for a
-      user with zero threads (empty state).
-- [ ] *Mobile responsiveness:* Product List, Detail and Registration remain usable and non-overlapping at a
+- [ ] ~~*"My offers" filter:* shows only products where the current user owns a negotiation thread.~~
+      **Not taken.** Within a product, LM-16 already filters the negotiation history per user, so a buyer can
+      isolate their own thread and a seller can pick any buyer's. What is missing is only the list-level view
+      across products, which is one more `PRODUCT_VIEWS` member and an `exists` subquery against `offers`.
+- [x] *Mobile responsiveness:* Product List, Detail and Registration remain usable and non-overlapping at a
       375px-wide viewport; the negotiation history table stays readable (scrollable rather than clipped).
-- [ ] No bonus regresses any P0 behaviour — the LM-12 and LM-16 QA scripts still pass afterwards.
+- [x] No bonus regresses any P0 behaviour — the LM-12 and LM-16 QA scripts still pass afterwards.
 
 **QA steps** — *browser*
 
@@ -1293,7 +1297,10 @@ Normal window = **Alice (seller)**. Incognito = **Bob**.
 ## LM-27 · Post-action feedback modal
 
 **Priority:** P2 · **Estimate:** 1.5h · **Depends on:** LM-12, LM-16
-**Status:** Not started
+**Status:** Done for Purchase · **QA:** 2026-08-16 — modal verified over the product screen, backdrop
+blocking (the header **Sell** link is unreachable through it, `body` gets `pointer-events: none`), and
+its button is what navigates. Accept and Counter carry no modal by design; two keyboard criteria below
+are unmet.
 
 > As a user who just purchased, accepted or countered, I want a clear acknowledgement of what happened, so that I
 > am not silently teleported back to the product list wondering whether it worked.
@@ -1302,17 +1309,21 @@ Normal window = **Alice (seller)**. Incognito = **Bob**.
 
 **Acceptance criteria**
 
-- [ ] After Purchase, Accept and Counter, a modal reports what happened (and the resulting price/status where
-      relevant) instead of the screen silently navigating away.
-- [ ] The modal sits over a **semi-transparent backdrop that blocks interaction** with the page beneath.
-- [ ] The modal contains a **navigate-to-list** button; using it is what returns the user to the Product List.
-- [ ] The underlying action has already succeeded before the modal appears — the modal reports, it does not confirm
+- [x] After **Purchase**, a modal reports what happened and the price paid instead of the screen silently
+      navigating away. ~~Accept and Counter.~~ **Superseded:** both now stay on the product screen, which updates
+      in place — no navigation to interrupt, so there is nothing for a modal to soften.
+- [x] The modal sits over a **semi-transparent backdrop that blocks interaction** with the page beneath.
+- [x] The modal contains a **navigate-to-list** button; using it is what returns the user to the Product List.
+- [x] The underlying action has already succeeded before the modal appears — the modal reports, it does not confirm
       (confirmation is LM-26's job, and runs *before* the action).
-- [ ] A failed action shows an error state rather than a success message.
-- [ ] Implemented as an **in-page DOM modal, never `window.alert`** — a native dialog hard-blocks the browser
+- [x] A failed action shows an error state rather than a success message — a toast, with the screen refetched
+      behind it.
+- [x] Implemented as an **in-page DOM modal, never `window.alert`** — a native dialog hard-blocks the browser
       automation used for QA.
-- [ ] Dismissable by keyboard (Escape) and focus is moved into the modal when it opens.
-- [ ] Does not double-fire: completing one action produces exactly one modal.
+- [ ] Dismissable by keyboard (Escape) and focus is moved into the modal when it opens. **Neither holds.** The
+      dialog is rendered as `<AlertDialog open>` with no `onOpenChange`, so Escape reaches a handler that does
+      nothing, and with no trigger element Radix never hands focus over — `document.activeElement` stays on `body`.
+- [x] Does not double-fire: completing one action produces exactly one modal.
 
 **QA steps** — *browser, two users*
 
