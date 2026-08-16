@@ -10,7 +10,8 @@ import { positiveIntFromText } from './primitives';
 
 export const MAX_IMAGES = 5;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+// SVG is excluded: it carries script, and the bucket serves what it is given to anyone (T-74).
+export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export const createProductRequestSchema = z.object({
   name: z.string().trim().min(1),
