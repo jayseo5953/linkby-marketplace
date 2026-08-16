@@ -20,7 +20,7 @@ export function ProductCard({ product }: { product: ProductListItemResponse }) {
   return (
     <Link to={productDetailPath(product.id)} className="block rounded-xl">
       <Card className="h-full pt-0 transition hover:ring-foreground/25">
-        <div className="flex aspect-video w-full items-center justify-center bg-muted">
+        <div className="flex aspect-[4/3] w-full shrink-0 items-center justify-center overflow-hidden bg-muted">
           {product.imageUrl !== null ? (
             <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
           ) : (
