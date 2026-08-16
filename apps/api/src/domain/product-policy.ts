@@ -71,6 +71,11 @@ export class ProductPolicy {
     return this.newestInThread(offer.buyerId)?.id === offer.id;
   }
 
+  // An Available product has no buyer, so matching one already implies the sale is settled.
+  wasAccepted(offer: OfferEntity): boolean {
+    return this.input.product.buyerId === offer.buyerId && this.isNewestInThread(offer);
+  }
+
   /** The seller answers any buyer's offer, in any of their threads, with no cap on how many. */
   private sellerMayAnswer(offer: OfferEntity): boolean {
     return this.isSeller && offer.madeBy === 'buyer';

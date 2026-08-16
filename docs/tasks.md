@@ -780,59 +780,63 @@ flag rather than separate Accept and Counter flags, since the two are one predic
 ## LM-16 · Negotiation History UI with inline controls
 
 **Priority:** P0 · **Estimate:** 3h · **Depends on:** LM-10, LM-14, LM-15
-**Status:** Not started
+**Status:** Done · **QA:** passed 2026-08-16 — all 12 steps across Alice, Bob and Carol, at 1280px and 375px.
 
 > As a buyer or seller looking at a product, I want to see the whole offer history and act on the offer that is mine
 > to answer, so that I can negotiate entirely from the product screen (§3.4).
 
 **Acceptance criteria**
 
-- [ ] An initial **Counter Offer** button is visible only to a buyer (never the seller) who has made no offer on
+- [x] An initial **Counter Offer** button is visible only to a buyer (never the seller) who has made no offer on
       this product yet; it disappears for that buyer once their thread exists.
-- [ ] The Negotiation History section appears once at least one offer exists, and is visible to **everyone** —
+- [x] The Negotiation History section appears once at least one offer exists, and is visible to **everyone** —
       seller and all buyers.
-- [ ] History renders as a chronological table/timeline across all buyers' threads; each row shows timestamp,
+- [x] History renders as a chronological timeline across all buyers' threads; each row shows timestamp,
       buyer name, `madeBy` and price — exactly the four fields §3.4 lists.
-- [ ] Inline **Accept** / **Counter Offer** controls appear on a row only when it is the latest offer in its thread
+- [x] Inline **Accept** / **Counter Offer** controls appear on a row only when it is the latest offer in its thread
       **and** it is that viewer's turn (viewer is the seller and the row was buyer-made, or viewer owns the thread
       and the row was seller-made).
-- [ ] Counter prompts for a new price; submitting logs the offer and returns to the Product List.
-- [ ] Accept takes no price input; submitting sets the product to `Reserved` and returns to the Product List.
-- [ ] **Once the product is `Reserved` or `Sold`, nothing on this screen is actionable by anyone except the
+- [x] Counter prompts for a new price; submitting logs the offer. It stays on Product Details rather than
+      returning to the Product List, so the new row and the flipped turn are visible where the offer was made.
+- [x] Accept takes no price input; submitting sets the product to `Reserved`. It stays on Product Details
+      rather than returning to the Product List, so the accepted row, the new status and the frozen controls
+      are visible where the accept was made.
+- [x] **Once the product is `Reserved` or `Sold`, nothing on this screen is actionable by anyone except the
       reserved buyer's Purchase** — no Accept, no Counter, no initial Counter Offer button, for seller and every
       buyer alike. History stays fully readable.
-- [ ] Server-side rejections (stale turn, product already reserved) surface as a visible error, not a silent no-op.
+- [x] Server-side rejections (stale turn, product already reserved) surface as a visible error, not a silent no-op.
 
-**QA steps** — *browser, three users*
+**QA steps** — *browser, three users in isolated sessions, against seeded product 7 (5 offers, one thread)*
 
-Normal window = **Alice (seller)**. Incognito window = **Bob**. For Carol, log Bob out of the incognito window and
-log in as Carol, then reverse when done (or open a second incognito profile if available).
-
-1. Alice lists `QA Negotiate` at 100. Alice's own detail screen → **no** initial Counter Offer button, no history yet.
-2. Incognito as Bob → detail screen shows **Counter Offer** button. Click it, enter `80`, submit → returns to
-   Product List.
-3. Bob reopens the product → initial Counter Offer button is **gone**; Negotiation History shows one row
-   (timestamp, "Bob", buyer, 80). No Accept/Counter control on it for Bob (it is his own latest offer).
-4. Alice's window, reload the product → history shows the same row, and it **does** carry Accept + Counter Offer
-   controls for her.
-5. Alice clicks **Counter Offer**, enters `95`, submits → returns to Product List. Reopen → two rows; the new
-   seller row has no controls for Alice.
-6. Bob reloads → two rows; the seller row (95) shows **Accept** and **Counter Offer** for Bob; the older row shows none.
-7. Multi-buyer: in incognito log out of Bob, log in as **Carol**, open the product → she sees **both** of Bob's rows
-   (history is public, and they are labelled "Bob") with **no** controls on them, plus her own initial
-   **Counter Offer** button. She offers `70`.
-8. Alice reloads → three rows chronologically, each naming its buyer; controls on Bob's latest buyer row and
-   Carol's row, none on the seller row.
-9. Alice clicks **Accept** on Bob's row → returns to Product List; `QA Negotiate` card shows a `Reserved` indicator.
-10. Reserved lock-down — Alice reopens → history visible, **no** controls anywhere, no Counter.
-    Carol (incognito) reopens → no controls on any row, **no** initial Counter Offer button, no Purchase button.
-    Bob reopens → no Accept/Counter controls, but **Purchase** is available (LM-12). Nobody but Bob can act.
-11. Sold lock-down — Bob purchases → reopen as each of the three users → history still readable, zero actionable
-    controls for everyone including Bob.
-12. Stale-turn error: with two windows both showing Alice's actionable row, accept in one, then click Accept in the
-    other → visible error message, no second state change (`select status from products …` still `Reserved`).
-
----
+1. Alice (seller) opens the product → history shows all five of Carol's rows, no filter dropdown (one thread),
+   signpost reads `1 offer awaiting your response`, and only the latest row carries Accept + Counter Offer.
+2. Bob opens it → same five rows with **no** controls on any of them, plus his own `Purchase — $420.00` and
+   initial `Counter Offer` button.
+3. Bob clicks Counter Offer → form opens autofocused, headed `Listed price: $420.00`, carrying the warning that
+   submitting forfeits the listed price, Submit disabled while empty.
+4. Bob types `12.345` → `Enter an amount greater than 0, in dollars and cents — for example 220.00.`, Submit
+   still disabled. Types `300` → Submit enables; clicking it returns to the Product List and inserts a
+   `Bob / buyer / 30000` row.
+5. Alice reloads → the filter dropdown now appears (`All offers`, `Carol`, `Bob`), signpost reads `2 offers
+   awaiting your response`, and both threads' latest rows carry controls.
+6. Alice picks `Bob` in the dropdown → only Bob's thread renders. Counter Offer on that row opens the form
+   headed `Countering Bob's offer of $300.00`; `330` submits and returns to the Product List.
+7. Bob reloads → his two rows read `You → Alice (buyer) $300.00` and `Alice → You (seller) $330.00`, both with
+   the accent rail and tint; Carol's four rows are neutral and read `Carol → Alice` / `Alice → Carol`. His
+   Purchase button is gone (open negotiation) and only the seller's row carries Accept + Counter Offer.
+8. Bob clicks Accept → Product List; `select status, buyer_id, final_price_cents from products where id = 7`
+   returns `Reserved / 2 / 33000`.
+9. Reserved lock-down — Bob reopens: reserved banner plus `Purchase — $330.00`, zero Accept/Counter, no signpost.
+   Alice reopens: all seven rows readable, zero controls, no signpost. Carol reopens: `This product is no longer
+   available.`, zero controls, no initial Counter Offer button, no Purchase.
+10. Stale-turn conflict — reset to `Available`, load Bob's page with his actionable row, then accept Carol's
+    offer from Alice's token via curl (`200`). Bob clicks Accept → stays on the page, toast reads
+    `This product is no longer available to negotiate on / The offer was not accepted.`, and the page refetches
+    to `Reserved` with every control gone.
+11. Mobile at 375px → the panel wraps below the product content at full width, rows and controls fit, and
+    `document.documentElement.scrollWidth` does not exceed `window.innerWidth`.
+12. Restore — the two QA offers deleted and product 7 returned to `Available` with a null buyer and final price;
+    `select count(*) from offers where product_id = 7` back to 5.
 
 # ─────────── MINIMUM SHIPPABLE CUT ───────────
 

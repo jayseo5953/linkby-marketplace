@@ -1,9 +1,12 @@
+import type { CreateOfferRequest } from '@linkby/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Ban, BookmarkCheck, CircleAlert, CircleCheck, Store } from 'lucide-react';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
+import * as offersApi from '@/api/offers';
 import * as productsApi from '@/api/products';
+import type { OpenForm } from '@/components/products/negotiation-history';
 import { hasActions, ProductActionPanel } from '@/components/products/product-action-panel';
 import { ProductImages } from '@/components/products/product-images';
 import { ProductStatusBadge } from '@/components/products/product-status-badge';
@@ -24,6 +27,10 @@ import { formatPrice } from '@/lib/format';
 import { ApiError } from '@/lib/http';
 import { ROUTES } from '@/lib/routes';
 
+function refusal(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback;
+}
+
 export function ProductDetailsPage() {
   const { id } = useParams();
   const { session } = useAuth();
@@ -34,10 +41,17 @@ export function ProductDetailsPage() {
   const idIsUsable = Number.isInteger(productId) && productId > 0;
   // Set synchronously: a double-click fires twice before `isPending` has re-rendered the button.
   const inFlight = useRef(false);
+  const [openForm, setOpenForm] = useState<OpenForm>(null);
 
   const product = useQuery({
     queryKey: ['product', productId],
     queryFn: () => productsApi.getProduct(productId),
+    enabled: idIsUsable,
+  });
+
+  const offers = useQuery({
+    queryKey: ['offers', productId],
+    queryFn: () => offersApi.listOffers(productId),
     enabled: idIsUsable,
   });
 
@@ -46,11 +60,51 @@ export function ProductDetailsPage() {
     onSuccess: (bought) => queryClient.setQueryData(['product', productId], bought),
     // The refetch re-renders the screen as it truly is now, so the toast only has to say the click did nothing.
     onError: (error) => {
-      toast.error(
-        error instanceof ApiError ? error.message : "Couldn't reach the server to buy this product",
-        { description: 'Your purchase was not completed.' },
-      );
+      toast.error(refusal(error, "Couldn't reach the server to buy this product"), {
+        description: 'Your purchase was not completed.',
+      });
       void product.refetch();
+      void offers.refetch();
+    },
+    onSettled: () => {
+      inFlight.current = false;
+    },
+  });
+
+  const accept = useMutation({
+    mutationFn: (offerId: number) => offersApi.acceptOffer(offerId),
+    // Staying shows the accepted row, the frozen controls and the reserved banner in place.
+    onSuccess: (reserved) => {
+      setOpenForm(null);
+      queryClient.setQueryData(['product', productId], reserved);
+      void offers.refetch();
+    },
+    onError: (error) => {
+      toast.error(refusal(error, "Couldn't reach the server to accept this offer"), {
+        description: 'The offer was not accepted.',
+      });
+      void product.refetch();
+      void offers.refetch();
+    },
+    onSettled: () => {
+      inFlight.current = false;
+    },
+  });
+
+  const counter = useMutation({
+    mutationFn: (offer: CreateOfferRequest) => offersApi.createOffer(productId, offer),
+    // Staying puts the new offer in the history the viewer is already reading.
+    onSuccess: () => {
+      setOpenForm(null);
+      void product.refetch();
+      void offers.refetch();
+    },
+    onError: (error) => {
+      toast.error(refusal(error, "Couldn't reach the server to send this offer"), {
+        description: 'Your offer was not sent.',
+      });
+      void product.refetch();
+      void offers.refetch();
     },
     onSettled: () => {
       inFlight.current = false;
@@ -71,18 +125,24 @@ export function ProductDetailsPage() {
     );
   }
 
-  if (product.isPending) {
+  if (product.isPending || offers.isPending) {
     return <p className="text-muted-foreground text-sm">Loading product…</p>;
   }
 
-  if (product.isError) {
+  if (product.isError || offers.isError) {
     return (
       <div className="flex flex-wrap items-center gap-3">
         <p role="alert" className="text-destructive flex items-center gap-2 text-sm">
           <CircleAlert className="size-4 shrink-0" />
           Couldn't load this product.
         </p>
-        <Button variant="outline" onClick={() => void product.refetch()}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            void product.refetch();
+            void offers.refetch();
+          }}
+        >
           Retry
         </Button>
       </div>
@@ -106,7 +166,7 @@ export function ProductDetailsPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div
-          className={`flex flex-col gap-6 ${hasActions(product.data) ? 'lg:col-span-2' : 'lg:col-span-3'}`}
+          className={`flex flex-col gap-6 ${hasActions(product.data, offers.data) ? 'lg:col-span-2' : 'lg:col-span-3'}`}
         >
           <div className="flex flex-col gap-2">
             {viewerIsSeller && (
@@ -146,12 +206,28 @@ export function ProductDetailsPage() {
 
         <ProductActionPanel
           product={product.data}
-          isWorking={purchase.isPending}
+          offers={offers.data}
+          viewerId={session?.user.id}
+          openForm={openForm}
+          onOpenForm={setOpenForm}
+          isWorking={purchase.isPending || accept.isPending || counter.isPending}
           onPurchase={() => {
             if (inFlight.current) return;
 
             inFlight.current = true;
             purchase.mutate();
+          }}
+          onAccept={(offerId) => {
+            if (inFlight.current) return;
+
+            inFlight.current = true;
+            accept.mutate(offerId);
+          }}
+          onCounter={(amountCents, inReplyToOfferId) => {
+            if (inFlight.current) return;
+
+            inFlight.current = true;
+            counter.mutate({ amountCents, inReplyToOfferId });
           }}
         />
       </div>

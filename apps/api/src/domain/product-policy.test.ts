@@ -361,6 +361,43 @@ describe('isNewestInThread', () => {
   });
 });
 
+describe('wasAccepted', () => {
+  it('marks nothing while the product is still Available', () => {
+    const offers = thread(bob.id, 'buyer', 'seller', 'buyer');
+    const policy = policyFor(alice, {}, offers);
+
+    expect(offers.map((offer) => policy.wasAccepted(offer))).toEqual([false, false, false]);
+  });
+
+  it('marks the newest offer in the winning thread, and nothing in a losing one', () => {
+    const bobs = thread(bob.id, 'buyer', 'seller');
+    const carols = thread(carol.id, 'buyer', 'seller', 'buyer');
+    const policy = policyFor(alice, { status: 'Reserved', buyerId: carol.id }, [...bobs, ...carols]);
+
+    expect([...bobs, ...carols].map((offer) => policy.wasAccepted(offer))).toEqual([
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it('still marks the winning row once the reserved buyer has purchased', () => {
+    const offers = thread(bob.id, 'buyer');
+    const policy = policyFor(alice, { status: 'Sold', buyerId: bob.id }, offers);
+
+    expect(policy.wasAccepted(offers[0]!)).toBe(true);
+  });
+
+  it('marks nothing on a direct purchase, where the buyer never opened a thread', () => {
+    const offers = thread(carol.id, 'buyer');
+    const policy = policyFor(alice, { status: 'Sold', buyerId: bob.id }, offers);
+
+    expect(policy.wasAccepted(offers[0]!)).toBe(false);
+  });
+});
+
 // Gate numbering follows wireframes.md §5.5; the six turn cases are that section's Gate 3 table.
 describe('canRespondTo — §5.5 row controls', () => {
   it('gate 1: freezes every row for every viewer once the product leaves Available', () => {

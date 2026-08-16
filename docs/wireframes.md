@@ -183,10 +183,13 @@ Terminology used throughout:
 acknowledges it. Purchase is the one action that completes a sale and takes money, and it completes
 fast enough that a plain navigation reads as nothing having happened.
 
-**Accept, Counter submit and Registration submit** land back on this page as a **plain navigation
-with no confirmation message** — no banner, no toast, no interstitial. The grid simply re-renders
-with the product's new state, and the only evidence the action succeeded is the changed status badge
-(or, for a new listing, the new card). Their modal variants stay in bonus scope.
+**Counter submit and Accept** do not come back here at all — they stay on Product Details, where the
+history they acted on shows what changed.
+
+**Registration submit** lands back on this page as a **plain navigation with no confirmation
+message** — no banner, no toast, no interstitial. The grid simply re-renders with the
+product's new state, and the only evidence the action succeeded is the changed status badge (or, for
+a new listing, the new card). Their modal variants stay in bonus scope.
 
 ---
 
@@ -501,43 +504,80 @@ One chronological, cross-buyer list, visible to **everyone** who can see the pro
 every buyer, not just thread participants (§3.4).
 
 It lives inside the right-hand action panel (§4.1), beneath the action buttons, so every control a
-viewer can use sits in one column. The sketches below are drawn as a wide table to show the columns
-and the per-row rules; how a row is laid out in a narrow panel is settled when the history is built.
+viewer can use sits in one column.
 
 ### 5.1 Row spec (DECIDED, A4)
 
-Rows follow requirements.md §3.4 exactly: **timestamp, buyer name, `madeBy`, price**, plus an Actions
-cell for the inline controls.
+Rows carry requirements.md §3.4's four fields exactly — **timestamp, buyer name, `madeBy`, price** —
+plus the inline controls. The panel is roughly 360px, so a five-column table does not fit; a row is
+two stacked lines with the controls on an optional third:
 
-| Column | Content |
+```
+ $280.00
+ Carol (buyer) → Alice (seller)
+ Aug 15, 10:20 PM
+ [ Accept ]  [ Counter Offer ]
+```
+
+| Element | Content |
 | --- | --- |
-| Timestamp | Offer time, ascending across all threads |
-| Buyer | The **real user name** of the buyer who owns that thread — the same name everyone sees |
-| Made by | `buyer` or `seller` |
-| Price | Offer amount |
-| Actions | Inline `Accept` / `Counter Offer`, per §5.5 |
+| Line 1 | Offer amount, in tabular figures — the row's headline and its only emphasised text — with an `Accepted` badge beside it on the one offer a sale settled on |
+| Line 2 | Both parties, each tagged with its role in muted text, `You` substituted for the viewer, and the arrow pointing the way the offer travelled |
+| Line 3 | Offer time, muted |
+| Line 4 | Inline `Accept` / `Counter Offer`, per §5.5 — present only when actionable |
 
-- The Buyer column identifies the **thread**, not who made the individual offer. A row made by the
-  seller still carries the thread's buyer name, with `Made by = seller` marking authorship. That
-  pairing is what lets one flat table represent several two-party conversations.
+- The names hold **constant positions** — buyer left, seller right — and only the arrow flips:
+  `Carol (buyer) → Alice (seller)` is Carol's offer, `←` is the seller's reply. Swapping the names by
+  author instead was tried and reads worse, because the eye has to re-read who is where on every row.
+- The pair names **both parties to that offer**, so the thread's buyer is on every row as §3.4
+  requires while the arrow says who wrote it. Naming only the thread's buyer was tried first and is
+  wrong on a viewer's own thread: both sides then read `You`, since the buyer names the conversation
+  rather than the author.
+- Each field gets its own line, all flush left. Time, participants and amount competed for two lines
+  in an earlier draft and wrapped as soon as a name ran long.
+- The amount leads because it **is** the offer; who and when are metadata. It is also what a reader
+  compares down a thread, so it needs a consistent left edge — right-aligning it made the amounts
+  zigzag, since rows alternate sides and vary in width.
+- A row is 75% of the panel width so the left/right offset is unmistakable at a glance.
 - Names are shown to **everyone** who can see the product — the seller, the thread's own buyer, and
   every competing buyer — consistent with the cross-buyer visibility §3.4 already requires.
-- A buyer recognises their own thread by **their own name**; no additional marker is needed.
-- The *seller's* name appears on the product card and Details header (`Seller: bob`) as §3.2
-  requires, and the seller's offers appear here as `Made by = seller`.
+- Buyer-made rows sit left, seller-made rows right, so the two sides separate at a glance.
+- The viewer's own thread carries an accent rail and a tint. Other buyers' threads stay neutral —
+  colour marks *your* conversation, not one hue per participant.
+- The *seller's* name also appears on the product card and Details header (`Seller: bob`) as §3.2
+  requires.
+
+**Above the rows, additive only** — neither alters the chronological list §3.4 specifies:
+
+| Element | Behaviour |
+| --- | --- |
+| Signpost | `N offers awaiting your response`; clicking clears the filter and scrolls to the first. Text only — no controls, so an actionable offer never carries two Accept buttons |
+| Thread filter | A dropdown of `All offers` plus the threads the viewer can usefully isolate — every buyer for the **seller**, and only `You` for a **buyer**, since singling out a rival's thread helps nobody. Shown only when more than one thread exists and the viewer has something to filter to, so a buyer with no thread of their own sees no dropdown. Client-side: the feed is already loaded in full, and the signpost counts across all threads regardless of it |
 
 ### 5.2 Seller view, two competing threads, both awaiting the seller (PD-S2)
 
 ```
-|  --- Negotiation history --------------------------------------------------  |
-|                                                                              |
-|  Timestamp          Buyer    Made by   Price      Actions                     |
-|  ------------------------------------------------------------------------    |
-|  2026-08-10 09:12   dan      buyer     $200.00    (history)                   |
-|  2026-08-10 10:03   dan      seller    $240.00    (history)                   |
-|  2026-08-10 11:20   erin     buyer     $210.00    [ Accept ] [ Counter ]      |
-|  2026-08-10 14:47   dan      buyer     $220.00    [ Accept ] [ Counter ]      |
-|                                                                              |
+|  Negotiation history                                    |
+|  2 offers awaiting your response                        |
+|  [ All offers  v ]                                      |
+|                                                         |
+|   $200.00                                               |
+|   dan (buyer) → You (seller)                            |
+|   2026-08-10 09:12                                      |
+|                                                         |
+|               $240.00                                   |
+|               dan (buyer) ← You (seller)                |
+|               2026-08-10 10:03                          |
+|                                                         |
+|   $210.00                                               |
+|   erin (buyer) → You (seller)                           |
+|   2026-08-10 11:20                                      |
+|   [ Accept ]  [ Counter Offer ]                         |
+|                                                         |
+|   $220.00                                               |
+|   dan (buyer) → You (seller)                            |
+|   2026-08-10 14:47                                      |
+|   [ Accept ]  [ Counter Offer ]                         |
 ```
 
 Rows are ordered by timestamp across **all** threads (interleaved), while actionability is computed
@@ -545,8 +585,9 @@ Rows are ordered by timestamp across **all** threads (interleaved), while action
 row 3 is the latest in erin's thread and row 4 is the latest in dan's, so both are actionable by the
 seller.
 
-Row 2 is the seller's own counter into dan's thread — the Buyer column still reads `dan` because it
-names the thread, while `Made by = seller` names the author.
+Row 2 is the seller's own counter into dan's thread — it reads `dan (buyer) ← You (seller)` in the
+seller's view and `You (buyer) ← alice (seller)` in dan's, so the thread is identifiable from either
+side.
 
 > **Rule R2 — concurrent threads (DECIDED, A14).** Multiple buyers' offers may await the seller at
 > once — that is simply multiple threads. The seller **may** also push counters into several threads
@@ -565,32 +606,48 @@ names the thread, while `Made by = seller` names the author.
 ### 5.3 Buyer view — the viewer is `dan`, seller has countered (PD-B4)
 
 ```
-|  Timestamp          Buyer    Made by   Price      Actions                     |
-|  ------------------------------------------------------------------------    |
-|  2026-08-10 09:12   dan      buyer     $200.00    (history)                   |
-|  2026-08-10 10:03   dan      seller    $240.00    [ Accept ] [ Counter ]      |
-|  2026-08-10 11:20   erin     buyer     $210.00    (not yours)                 |
+|  1 offer awaiting your response                         |
+|  [ All offers  v ]                                      |
+|                                                         |
+|  | $200.00                                ← accent rail |
+|  | You (buyer) → alice (seller)              + tint     |
+|  | 2026-08-10 09:12                                     |
+|                                                         |
+|              | $240.00                                  |
+|              | You (buyer) ← alice (seller)             |
+|              | 2026-08-10 10:03                         |
+|              | [ Accept ]  [ Counter Offer ]            |
+|                                                         |
+|   $210.00                                   ← neutral   |
+|   erin (buyer) → alice (seller)                         |
+|   2026-08-10 11:20                                      |
 ```
 
 dan sees erin's row — full cross-buyer visibility per §3.4, including erin's name and price — but can
-never act on it. dan identifies his own rows by his own name in the Buyer column.
+never act on it. dan's own thread is the one carrying `You` and the accent rail.
 
 ### 5.4 Frozen (product `Reserved` or `Sold`)
 
+Every row loses its controls, and the signpost disappears because nothing awaits anyone (rule **R1**).
+The rows themselves stay fully readable, and the offer the sale settled on carries an `Accepted`
+badge beside its amount:
+
 ```
-|  --- Negotiation history --------------------------------------------------  |
-|  (i) Negotiation closed — this product is reserved for dan.                  |
-|                                                                              |
-|  Timestamp          Buyer    Made by   Price      Actions                     |
-|  ------------------------------------------------------------------------    |
-|  2026-08-10 09:12   dan      buyer     $200.00    —                           |
-|  2026-08-10 10:03   dan      seller    $240.00    —                           |
-|  2026-08-10 11:20   erin     buyer     $210.00    —                           |
-|  2026-08-10 14:47   dan      buyer     $220.00    ACCEPTED                    |
+|   $210.00                                               |
+|   erin (buyer) → alice (seller)                         |
+|   2026-08-10 11:20                                      |
+|                                                         |
+|   $220.00   Accepted                                    |
+|   dan (buyer) → alice (seller)                          |
+|   2026-08-10 14:47                                      |
 ```
 
-The accepted row is marked; every row's Actions cell is empty (rule **R1**). The closing banner names
-the winning buyer — the reserved buyer sees `reserved for you`, everyone else sees `reserved for dan`.
+Exactly one row can carry it, and only on a `Reserved` or `Sold` product. A product sold by direct
+purchase carries it nowhere, since that buyer never opened a thread.
+
+No closing banner sits inside the history: §4.1's banners already state the outcome to every viewer —
+`This product is reserved for you.` to the winning buyer, `This product is no longer available.` to
+everyone else — and repeating it here would say the same thing twice.
 
 ### 5.5 Rule table — when inline `Accept` / `Counter Offer` appear on a row
 
@@ -624,12 +681,14 @@ and the other is not.
 
 | Control | Effect | Navigates to |
 | --- | --- | --- |
-| `Accept` | Product → `Reserved`, that row's thread buyer becomes the reserved buyer, that thread closes as won, all other threads on the product freeze (§2.5 r5) | **Product List** |
-| `Counter Offer` | Opens the inline price panel (§6); on submit logs a new offer in that thread and flips the turn | **Product List** |
+| `Accept` | Product → `Reserved`, that row's thread buyer becomes the reserved buyer, that thread closes as won, all other threads on the product freeze (§2.5 r5) | **stays on Product Details** |
+| `Counter Offer` | Opens the inline price panel (§6); on submit logs a new offer in that thread and flips the turn | **stays on Product Details** |
 
 Accept takes no price input — the row's price is the agreed price (§2.5 r8) — and commits on a single
-click with no confirmation step (A3, decided; the confirm step is bonus, §9.3). Both navigations are
-plain, with no confirmation message on arrival (§2d).
+click with no confirmation step (A3, decided; the confirm step is bonus, §9.3). Neither control
+navigates: both refetch in place, where the effect of the click is visible — a new row and a flipped
+turn for a counter, and for an accept the `Accepted` badge, the `Reserved` status and the frozen
+controls.
 
 ---
 
@@ -676,8 +735,8 @@ The warning line is required, not decorative: submitting here permanently remove
 |  2026-08-10 11:20   erin     buyer     $210.00    (not yours)                 |
 ```
 
-The panel opens directly beneath its row and names the party whose offer is being countered — the
-seller (`bob`) in the buyer's view above, and the thread's buyer in the seller's view
+The panel opens directly beneath its row and names the **author** of the offer being countered — the
+seller in a buyer's view, and the thread's buyer in the seller's view
 (`Countering erin's offer of $210.00`) — so a seller juggling several threads can never counter the
 wrong one.
 
@@ -686,7 +745,7 @@ wrong one.
 | Element | Behaviour |
 | --- | --- |
 | Price input | Numeric, currency-prefixed, autofocused on open, max 2 decimals |
-| `Submit offer` / `Submit counter` | Logs the offer, flips the turn → **Product List** (plain navigation, no confirmation — §2d) |
+| `Submit offer` / `Submit counter` | Logs the offer and flips the turn, then closes the panel and refetches in place. The new row appears in the history, and the consequences land on the same screen — a buyer opening a thread watches `Purchase` disappear, which is what the panel's warning was about |
 | `Cancel` | Closes the panel, logs nothing, stays on Product Details |
 
 **Rules**

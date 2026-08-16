@@ -30,6 +30,8 @@ export const offerListItemResponseSchema = z.object({
   amountCents: z.number().int().positive(),
   createdAt: z.string(),
   isLatestInThread: z.boolean(),
+  // The offer the sale settled on, once there is a sale.
+  isAccepted: z.boolean(),
   // One flag: accepting and countering appear and disappear together (T-65).
   canRespond: z.boolean(),
 });

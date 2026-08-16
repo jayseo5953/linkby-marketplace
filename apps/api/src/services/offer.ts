@@ -74,6 +74,7 @@ export async function listOffers(
     amountCents: offer.amountCents,
     createdAt: offer.createdAt.toISOString(),
     isLatestInThread: policy.isNewestInThread(offer),
+    isAccepted: policy.wasAccepted(offer),
     canRespond: policy.canRespondTo(offer),
   }));
 }
